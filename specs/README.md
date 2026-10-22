@@ -34,6 +34,7 @@ tests trace back to. When the implementation changes behaviour, the spec changes
 | [layout-and-navigation](layout-and-navigation/spec.md) | Mobile tab bar, desktop nav, arrow-key/remote focus, motion, SPA routing |
 | [accounts](accounts/spec.md) | Email + password accounts, welcome screen, upgrade guest in place, sign in/out, merge, delete |
 | [profiles](profiles/spec.md) | Who's watching, Kids profiles, PINs, per-profile library and sync keys |
+| [tonight](tonight/spec.md) | Spark Tonight: AI chat with fixed-question fallback that ends in real titles |
 
 Profiles (see below) share one browser and one sync space. Signing in with an email and password is optional: see accounts.
 
@@ -42,7 +43,7 @@ Profiles (see below) share one browser and one sync space. Signing in with an em
 <!-- status:start -->
 | Capability | IDs | Requirements | Tested | Manual |
 | --- | --- | ---: | ---: | ---: |
-| [accounts](accounts/spec.md) | `ACC-` | 16 | 13 | 3 |
+| [accounts](accounts/spec.md) | `ACC-` | 23 | 20 | 3 |
 | [cards](cards/spec.md) | `CARD-` | 8 | 4 | 4 |
 | [catalog-api](catalog-api/spec.md) | `API-` | 22 | 22 | 0 |
 | [home](home/spec.md) | `HOME-` | 11 | 6 | 5 |
@@ -50,7 +51,7 @@ Profiles (see below) share one browser and one sync space. Signing in with an em
 | [my-list](my-list/spec.md) | `MYLIST-` | 1 | 0 | 1 |
 | [new-and-popular](new-and-popular/spec.md) | `NEW-` | 3 | 0 | 3 |
 | [onboarding](onboarding/spec.md) | `ONB-` | 6 | 3 | 3 |
-| [player](player/spec.md) | `PLAYER-` | 26 | 21 | 5 |
+| [player](player/spec.md) | `PLAYER-` | 33 | 28 | 5 |
 | [profiles](profiles/spec.md) | `PRF-` | 14 | 13 | 1 |
 | [provider](provider/spec.md) | `PROV-` | 10 | 9 | 1 |
 | [pwa](pwa/spec.md) | `PWA-` | 8 | 7 | 1 |
@@ -59,5 +60,6 @@ Profiles (see below) share one browser and one sync space. Signing in with an em
 | [sync](sync/spec.md) | `SYNC-` | 18 | 17 | 1 |
 | [title-page](title-page/spec.md) | `TITLE-` | 9 | 7 | 2 |
 | [tmdb-proxy](tmdb-proxy/spec.md) | `TMDB-` | 10 | 10 | 0 |
-| **Total** | | **182** | **142** | **40** |
+| [tonight](tonight/spec.md) | `TONIGHT-` | 15 | 13 | 2 |
+| **Total** | | **211** | **169** | **42** |
 <!-- status:end -->

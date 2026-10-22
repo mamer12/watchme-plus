@@ -25,6 +25,7 @@ import { SyncToast } from './sync/SyncToast';
 import { TvApprovePrompt, useCapturedTvCode } from './sync/TvApprove';
 
 const PlayerPage = lazy(() => import('./features/player/PlayerPage'));
+const TonightPage = lazy(() => import('./features/tonight/TonightPage'));
 
 function PlayerFallback() {
   return (
@@ -83,6 +84,14 @@ function AppRoutes() {
           <Route path="/new" element={<NewPopularPage />} />
           <Route path="/my-list" element={<MyListPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route
+            path="/tonight"
+            element={
+              <Suspense fallback={<Spinner label="Loading" />}>
+                <TonightPage />
+              </Suspense>
+            }
+          />
           <Route path="/settings" element={capabilities(profileStore.active()).settings ? <SettingsPage /> : <Navigate to="/" replace />} />
           {/* Deep link: the modal over an empty home page. */}
           <Route path="/title/:id" element={<HomePage />} />

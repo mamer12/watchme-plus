@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getBanner, KNOWN_GENRES, getByGenre, searchTitles } from '../../api/catalog';
 import { CloseIcon, PlayIcon, SearchIcon } from '../../components/Icons';
 import { Img } from '../../components/Img';
@@ -12,6 +12,7 @@ import { useTitleActions } from '../../hooks/useTitleActions';
 import { displayTitle } from '../../lib/format';
 import { allowedAtLevel } from '../../lib/ratings';
 import { useLibrary } from '../../state/store';
+import { sparkName } from '../../lib/sparkBrand';
 import { useTop10 } from '../../components/Top10Row';
 import { mergeResults } from './merge';
 import type { Title } from '../../api/types';
@@ -119,6 +120,12 @@ export function SearchPage() {
           </button>
         )}
       </form>
+
+      {!q && (
+        <Link to="/tonight" className="chip">
+          {sparkName()} Tonight · الليلة
+        </Link>
+      )}
 
       {!q && (
         <nav className="chips chips--wrap" aria-label="Browse by genre">
