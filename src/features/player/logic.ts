@@ -2,7 +2,13 @@
 import type { Range, Title, VideoFile } from '../../api/types';
 
 export const HEVC_TYPE = 'video/mp4; codecs="hvc1.1.6.L150.90"';
-export const NEXT_CARD_SECONDS = 40;
+export const CREDITS_FRACTION = 0.035;
+export const CREDITS_MIN_SECONDS = 45;
+export const CREDITS_MAX_SECONDS = 150;
+/** The card appears this long after the credits are estimated to start. */
+export const CARD_AFTER_CREDITS_SECONDS = 8;
+export const CARD_MIN_FRACTION = 0.6;
+export const CARD_LAST_SECONDS = 15;
 export const COUNTDOWN_SECONDS = 10;
 export const SEEK_STEP = 10;
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
@@ -58,8 +64,37 @@ export function nextEpisode(episodes: Title[], currentId: string): Title | null 
   return i >= 0 ? episodes[i + 1] ?? null : null;
 }
 
-export function showNextCard(remaining: number, hasNext: boolean, dismissed: boolean): boolean {
-  return hasNext && !dismissed && Number.isFinite(remaining) && remaining > 0 && remaining <= NEXT_CARD_SECONDS;
+export interface NextCardPlan {
+  /** Playback time (s) from which the card is shown. */
+  at: number;
+  show: boolean;
+  /** The 10-second countdown runs (autoplay on); otherwise the card waits for a click. */
+  countdown: boolean;
+}
+
+/** Playback time at which the Next Episode card appears. `creditsStart` replaces the estimate when the catalog has one. */
+export function nextCardAt(duration: number, creditsStart?: number | null): number {
+  if (!Number.isFinite(duration) || duration <= 0) return Infinity;
+  const len = Math.min(CREDITS_MAX_SECONDS, Math.max(CREDITS_MIN_SECONDS, CREDITS_FRACTION * duration));
+  const start = creditsStart != null && creditsStart > 0 && creditsStart < duration ? creditsStart : duration - len;
+  const earliest = CARD_MIN_FRACTION * duration;
+  const latest = duration - CARD_LAST_SECONDS;
+  if (latest < earliest) return duration; // too short for a card: show it at the end
+  return Math.min(latest, Math.max(earliest, start + CARD_AFTER_CREDITS_SECONDS));
+}
+
+/** What the Next Episode card does at playback time `now`. Never shown without a next episode or after a dismissal. */
+export function nextCardPlan(
+  duration: number,
+  now: number,
+  autoplay: boolean,
+  dismissed: boolean,
+  hasNext = true,
+  creditsStart?: number | null,
+): NextCardPlan {
+  const at = nextCardAt(duration, creditsStart);
+  const show = hasNext && !dismissed && Number.isFinite(at) && now >= at;
+  return { at, show, countdown: show && autoplay };
 }
 
 /** 0..1 fill of the Next Episode button; 1 means "go now". */

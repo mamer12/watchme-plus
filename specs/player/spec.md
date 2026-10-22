@@ -107,17 +107,49 @@ notice, and play them when it is off.
 - THEN it continues at 966 s
 
 ### PLAYER-009: Next Episode
-The system SHALL, for series, show "Watch Credits" and "Next Episode" in the last 40 seconds; with autoplay on, the
-Next Episode button fills over 10 seconds of playback and then plays the next episode; Watch Credits or Escape cancels;
-at the end without autoplay an "Up Next" screen offers the next episode.
+The system SHALL, for series, show "Watch Credits" and "Next Episode" from the moment given by PLAYER-017; with
+autoplay on, the Next Episode button fills over 10 seconds of playback and then plays the next episode; Watch Credits,
+Back or Escape dismisses the card for good (no autoplay at the natural end); with autoplay off the card has a "Play
+next" button and no countdown; at the end of a dismissed episode an "Up Next" screen offers the next episode. The last
+episode and movies never show it.
 
 - Verification: test
-- Depends on: SET-004
+- Depends on: SET-004, PLAYER-017
 
 #### Scenario: Credits
-- GIVEN 35 seconds left in S1:E1 and autoplay on
-- WHEN 10 seconds pass
+- GIVEN a 22-minute S1:E1 at 1282 s and autoplay on
+- WHEN 10 seconds of playback pass
 - THEN S1:E2 starts
+
+### PLAYER-017: Next Episode timing
+The system SHALL estimate the credits length as 3.5% of the duration clamped to 45–150 s (or use a catalog credits
+start if one exists), show the card 8 s after the credits start, never before 60% of the duration nor later than 15 s
+before the end (episodes too short for that show it at the end). Seeking back before that time hides the card and
+resets a dismissal; an episode that ends without the card having shown shows it, with the countdown unless autoplay is
+off.
+
+- Verification: test
+- Depends on: PLAYER-009
+
+#### Scenario: 22-minute episode
+- GIVEN a 1320 s episode (credits 46.2 s)
+- WHEN playback reaches 1281.8 s
+- THEN the card appears (38 s before the end) and the next episode starts at 1291.8 s
+
+#### Scenario: 45-minute episode
+- GIVEN a 2700 s episode (credits 94.5 s)
+- WHEN playback reaches 2613.5 s
+- THEN the card appears (86.5 s before the end)
+
+#### Scenario: 2-hour film
+- GIVEN a movie of 7200 s
+- WHEN it nears the end
+- THEN no card shows (a series of that length would show it at 7058 s, credits clamped to 150 s)
+
+#### Scenario: Dismissed
+- GIVEN the viewer pressed Back on the card
+- WHEN the episode ends
+- THEN the Up Next screen shows and nothing autoplays
 
 ### PLAYER-010: Progress and resume
 The system SHALL save the position every 5 seconds while playing, on pause, on episode change and when leaving;

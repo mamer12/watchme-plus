@@ -40,7 +40,7 @@ import {
   playableFiles,
   rangeAt,
   SEEK_STEP,
-  showNextCard,
+  nextCardPlan,
   tapZone,
 } from './logic';
 import { AudioSubsPanel, EpisodesPanel, SpeedPanel, VolumePanel } from './Panels';
@@ -509,9 +509,19 @@ export default function PlayerPage() {
 
   // ---- next episode countdown -----------------------------------------------------------------
   const remaining = duration - time;
-  const nextCard = showNextCard(remaining, !!next, nextDismissed) && !ended;
+  // At the natural end the card shows even if it never came up (seeked to the very end).
+  const plan = nextCardPlan(duration, ended ? Infinity : time, settings.autoplayNext, nextDismissed, !!next);
+  const nextCard = plan.show && !!next;
+  const countdownOn = nextCard && settings.autoplayNext;
+  // Seeking back before the card resets a dismissal and the countdown.
   useEffect(() => {
-    if (!nextCard || !playing || !settings.autoplayNext) return;
+    if (!ended && time < plan.at) {
+      if (nextDismissed) setNextDismissed(false);
+      if (countdown > 0) setCountdown(0);
+    }
+  }, [time, plan.at, ended, nextDismissed, countdown]);
+  useEffect(() => {
+    if (!countdownOn || !(playing || ended)) return;
     const started = performance.now() - countdown * 10_000;
     const t = setInterval(() => {
       const p = countdownProgress(performance.now() - started);
@@ -523,7 +533,7 @@ export default function PlayerPage() {
     }, 100);
     return () => clearInterval(t);
     // `countdown` is read once so a paused countdown resumes where it stopped.
-  }, [nextCard, playing, settings.autoplayNext, goNext]);
+  }, [countdownOn, playing, ended, goNext]);
 
   // ---- keyboard -------------------------------------------------------------------------------
   const intro = data?.details ? rangeAt(time, data.details.introSkips) : null;
@@ -611,8 +621,7 @@ export default function PlayerPage() {
     save(video.current?.duration ?? 0);
     syncFlush();
     setPlaying(false);
-    if (next && settings.autoplayNext && !nextDismissed) goNext();
-    else setEnded(true);
+    setEnded(true);
   };
 
   const onVideoError = () => {
@@ -845,14 +854,14 @@ export default function PlayerPage() {
           <button type="button" className="btn btn--ghost" onClick={() => setNextDismissed(true)}>
             Watch Credits
           </button>
-          <button type="button" className="btn btn--next" onClick={goNext} style={{ ['--fill' as string]: `${countdown * 100}%` }}>
+          <button type="button" className="btn btn--next" onClick={goNext} style={{ ['--fill' as string]: `${countdownOn ? countdown * 100 : 0}%` }}>
             <span className="btn--next__fill" aria-hidden="true" />
-            <NextEpisodeIcon size={20} /> Next Episode
+            <NextEpisodeIcon size={20} /> {settings.autoplayNext ? 'Next Episode' : 'Play next'}
           </button>
         </div>
       )}
 
-      {ended && (
+      {ended && !nextCard && (
         <div className="end-screen">
           {next ? (
             <>

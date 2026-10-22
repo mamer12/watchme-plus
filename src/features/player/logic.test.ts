@@ -13,7 +13,8 @@ import {
   previewFile,
   rangeAt,
   seasonsOf,
-  showNextCard,
+  nextCardAt,
+  nextCardPlan,
   SPEEDS,
   tapZone,
 } from './logic';
@@ -64,18 +65,56 @@ describe('player logic', () => {
     expect(familySkipTarget(100, scenes, true)).toBeNull();
   });
 
-  it('PLAYER-009: shows Next Episode in the last 40 seconds with a 10-second countdown', () => {
+  it('PLAYER-009: finds the next episode and fills the countdown over 10 seconds', () => {
     const eps = [ep('1', 1, 1), ep('2', 1, 2), ep('3', 2, 1)];
     expect(nextEpisode(eps, '2')?.id).toBe('3');
     expect(nextEpisode(eps, '3')).toBeNull();
     expect(nextEpisode(eps, 'x')).toBeNull();
-    expect(showNextCard(41, true, false)).toBe(false);
-    expect(showNextCard(40, true, false)).toBe(true);
-    expect(showNextCard(10, true, true)).toBe(false);
-    expect(showNextCard(10, false, false)).toBe(false);
     expect(countdownProgress(0)).toBe(0);
     expect(countdownProgress(5000)).toBe(0.5);
     expect(countdownProgress(12000)).toBe(1);
+  });
+
+  it('PLAYER-017: 22-minute episode shows the card 8 s into the estimated credits', () => {
+    expect(nextCardAt(1320)).toBeCloseTo(1281.8, 1);
+    expect(nextCardPlan(1320, 1281, true, false).show).toBe(false);
+    expect(nextCardPlan(1320, 1282, true, false)).toMatchObject({ show: true, countdown: true });
+  });
+
+  it('PLAYER-017: 45-minute episode shows the card about 86 s before the end', () => {
+    expect(2700 - nextCardAt(2700)).toBeCloseTo(86.5, 1);
+  });
+
+  it('PLAYER-017: 2-hour film clamps credits to 150 s (but films never show the card)', () => {
+    expect(7200 - nextCardAt(7200)).toBeCloseTo(142, 1);
+    expect(nextCardPlan(7200, 7100, true, false, false).show).toBe(false);
+  });
+
+  it('PLAYER-017: short clips show the card at 60% and never later than 15 s before the end', () => {
+    expect(nextCardAt(100)).toBe(63);
+    expect(nextCardAt(60)).toBe(36); // floor 60%
+    expect(nextCardAt(30)).toBe(30); // too short: at the end
+    expect(nextCardAt(0)).toBe(Infinity);
+  });
+
+  it('PLAYER-017: a catalog credits marker replaces the estimate', () => {
+    expect(nextCardAt(1320, 1200)).toBe(1208);
+    expect(nextCardAt(1320, 100)).toBe(792); // never before 60%
+  });
+
+  it('PLAYER-017: a dismissed card stays dismissed', () => {
+    expect(nextCardPlan(1320, 1300, true, true).show).toBe(false);
+    expect(nextCardPlan(1320, Infinity, true, true).show).toBe(false);
+  });
+
+  it('PLAYER-017: with autoplay off the card has no countdown', () => {
+    expect(nextCardPlan(1320, 1300, false, false)).toMatchObject({ show: true, countdown: false });
+  });
+
+  it('PLAYER-017: seeking back before the card hides it; the end always shows it', () => {
+    expect(nextCardPlan(1320, 1300, true, false).show).toBe(true);
+    expect(nextCardPlan(1320, 600, true, false).show).toBe(false);
+    expect(nextCardPlan(1320, Infinity, true, false)).toMatchObject({ show: true, countdown: true });
   });
 
   it('PLAYER-011: offers 0.5× to 1.5× playback speeds', () => {
