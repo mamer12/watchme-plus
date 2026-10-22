@@ -13,6 +13,7 @@ import { SyncEngine, type EnvLike } from './engine';
 import { connectRealtime, realtimeSupported } from './realtime';
 import { getSyncStatus, setSyncStatus, subscribeSyncStatus } from './status';
 import { SyncStorage } from './syncStorage';
+import { runApprove, type ApproveResult } from './tvLogin';
 import { SyncHttpError } from './types';
 
 export interface DeviceRow {
@@ -190,6 +191,11 @@ export class SyncService {
       }
       return { ok: false, error: 'error' };
     }
+  }
+
+  /** Signs in the TV that shows `code`. The code is never stored or logged here. */
+  approveDeviceLogin(code: string): Promise<ApproveResult> {
+    return runApprove(this.client, code);
   }
 
   newPairingCode(): Promise<string> {

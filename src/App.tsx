@@ -22,6 +22,7 @@ import { useRecovery } from './sync/recovery';
 import { useSyncStatus } from './sync/status';
 import { GettingProfiles, RecoveryScreen, WelcomeScreen } from './sync/Welcome';
 import { SyncToast } from './sync/SyncToast';
+import { TvApprovePrompt, useCapturedTvCode } from './sync/TvApprove';
 
 const PlayerPage = lazy(() => import('./features/player/PlayerPage'));
 
@@ -99,10 +100,12 @@ function AppRoutes() {
 
 export function App() {
   useEffect(() => installSpatialNav(), []);
+  useCapturedTvCode(); // keep a ?tv= code before the first screen renders
   return (
     <BrowserRouter>
       <AppRoutes />
       <JoinPrompt />
+      <TvApprovePrompt />
       <SyncToast />
     </BrowserRouter>
   );

@@ -203,6 +203,11 @@ export class SyncClient implements SyncApi {
     return (text ? JSON.parse(text) : null) as T;
   }
 
+  /** Approves the TV that shows this code. False: wrong, expired or used (the backend does not say which). */
+  async approveDeviceLogin(code: string): Promise<boolean> {
+    return (await this.rpc<boolean | null>('approve_device_login', { code })) === true;
+  }
+
   async upsert(table: Table, rows: Record<string, unknown>[], opts: { keepalive?: boolean } = {}): Promise<void> {
     if (!rows.length) return;
     const onConflict = table === 'watch_progress' ? 'space_id,item_key' : table === 'settings' ? 'space_id,key' : 'space_id,title_id';

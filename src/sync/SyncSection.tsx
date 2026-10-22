@@ -3,6 +3,7 @@ import { CODE_LENGTH, PAIRING_TTL_MS, deviceNameFromUA, formatCode, isCompleteCo
 import { syncEnabled } from './config';
 import { loadSyncService } from './runtime';
 import type { DeviceRow, SyncService } from './service';
+import { SignInTvRow } from './TvApprove';
 import { statusText, useSyncStatus } from './status';
 
 const QrCode = lazy(() => import('./QrCode'));
@@ -258,6 +259,7 @@ export function SyncSection() {
             )}
           </div>
           {pairing && !account && <PairingPanel onClose={() => setPairing(false)} />}
+          {!account && <SignInTvRow />}
           {!account && <div className="field">
             <div className="field__text">
               <span className="field__label">Disconnect this device</span>

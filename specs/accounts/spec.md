@@ -209,3 +209,75 @@ device) still skips the rows it wrote itself.
 - GIVEN a My List row written by the account's user from the TV
 - WHEN the website pulls it while signed in to the same account
 - THEN the title appears in the website's My List
+
+### ACC-018: A TV's QR code is captured on landing
+The system SHALL read a whole TV code from `/?tv=CODE` or `#tv=CODE` (an 8-character code, spaces, dashes and case tolerated),
+keep it in `sessionStorage` only so it survives sign-in and sign-up redirects, and remove it from the address. A partial or
+invalid code is ignored. The code is never logged and is forgotten once approved, cancelled or refused.
+
+- Verification: test
+
+#### Scenario: Opening the QR link
+- GIVEN the page is opened at `/?tv=ABCD-EFGH&x=1`
+- WHEN the app starts
+- THEN the code ABCDEFGH is pending, and the address is `/?x=1`
+
+### ACC-019: Approving a TV
+The system SHALL, when someone is signed in (an account, or a guest with a space) on an adult profile, show a full-screen
+"Sign in your TV?" dialog with the code grouped as ABCD EFGH, who is signing in (the email or "this guest space"), one line
+on what happens, and Approve (focused) and Cancel. Approve calls `approve_device_login(code)` and then says
+"Your TV is signed in. You can close this."
+
+- Verification: test
+- Verification: manual — scan a TV's QR code while signed in: the dialog shows, Approve signs the TV in
+
+#### Scenario: Approve
+- GIVEN a signed-in account and a pending TV code
+- WHEN the person taps Approve and the backend answers true
+- THEN the success message shows and the code is forgotten
+
+### ACC-020: Friendly approval errors
+The system SHALL map a false answer to "That code didn't work. Ask the TV for a new QR code." (wrong, expired and used
+look the same), `too_many_attempts` to a wait message, a network failure to an offline message, and anything else to a
+generic one. Raw server text is never shown.
+
+- Verification: test
+
+#### Scenario: Wrong code
+- GIVEN the backend answers false
+- WHEN the person approves
+- THEN "That code didn't work. Ask the TV for a new QR code." shows
+
+### ACC-021: Signed out, the code waits
+The system SHALL, when a TV code is pending and nobody is signed in, show the welcome screen with the line "Sign in to
+approve your TV", and show the approval dialog right after sign-in or "Continue as guest" completes.
+
+- Verification: test
+- Verification: manual — open `/?tv=CODE` signed out, sign in: the dialog follows
+
+#### Scenario: Code kept through sign-in
+- GIVEN a pending TV code and nobody signed in
+- WHEN the page reloads after sign-in
+- THEN the code is still pending
+
+### ACC-022: Type the TV's code
+The system SHALL offer a "Sign in a TV" row in Settings, Account (and Sync for a linked guest) with a code field that
+normalises like pairing codes and enables the button only for a whole code, then the same approval dialog.
+
+- Verification: test
+
+#### Scenario: Manual code
+- GIVEN the text "abcd efgh"
+- WHEN it is normalised
+- THEN it is a complete code ABCDEFGH
+
+### ACC-023: Kids profiles cannot sign in a TV
+The system SHALL hide the "Sign in a TV" row for Kids profiles and, for a code that arrives while a Kids profile is
+active, forget the code and say to use an adult profile.
+
+- Verification: test
+
+#### Scenario: Kids profile
+- GIVEN a Kids profile is active
+- WHEN the capabilities are read
+- THEN signing in a TV is not allowed

@@ -94,6 +94,29 @@ async function migrationApplied() {
   return d.ok ? 'ok' : 'skip';
 }
 
+/** Sign in a TV with the phone (0003_device_login.sql). Two users: a TV-like guest and the account. SKIPs if 0003 is missing. */
+async function deviceLoginCheck(account) {
+  const tv = new Client();
+  try {
+    if (!(await tv.guest()).ok) return skip('device login: anonymous sign-ins are off; cannot test');
+    const req = await tv.rpc('request_device_login', { device_name: 'TV' });
+    if (missingFn(req)) return skip('supabase/migrations/0003_device_login.sql is not applied yet (request_device_login missing)');
+    check('TV requests a code', req.ok, String(req.status));
+    const code = typeof req.json === 'string' ? req.json : (req.json?.code ?? (Array.isArray(req.json) ? req.json[0]?.code : null));
+    if (!code) return skip('request_device_login returned an unexpected shape; not testing the rest');
+    check('a wrong code is refused', (await account.rpc('approve_device_login', { code: 'ZZZZZZZZ' })).json === false);
+    const ok = await account.rpc('approve_device_login', { code });
+    check('the account approves the TV code', ok.ok && ok.json === true, `${ok.status}`);
+    const got = await tv.rpc('check_device_login');
+    check('the TV gets the account space', got.ok && !!got.json, `${got.status}`);
+  } finally {
+    if (tv.token) {
+      const d = await tv.rpc('delete_my_account');
+      if (!d.ok) await tv.rpc('leave_space');
+    }
+  }
+}
+
 async function main() {
   const ping = await fetch(`${URL_}/rest/v1/rpc/ping`, { method: 'POST', headers: { apikey: KEY, 'Content-Type': 'application/json' }, body: '{}' });
   check('ping', ping.ok, String(ping.status));
@@ -154,6 +177,8 @@ async function main() {
     const lo = await C.call('/auth/v1/logout?scope=local', { method: 'POST' });
     check('logout (this device only)', lo.status === 204 || lo.ok, String(lo.status));
     check('the other device stays signed in', (await B.rpc('list_devices')).ok);
+
+    await deviceLoginCheck(B);
 
     // Delete.
     const del = await B.rpc('delete_my_account');

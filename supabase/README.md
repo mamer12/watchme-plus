@@ -161,3 +161,15 @@ GET {URL}/rest/v1/watch_progress?space_id=eq.<id>&updated_at=gt.2026-10-22T10:15
 ```
 -> `[{"space_id":"...","item_key":"ep:456","position_ms":734000,...,"deleted":false,"updated_at":"2026-10-22T10:16:02.5+00:00"}]`
 Rows with `"deleted":true` are tombstones: remove them locally.
+
+## Sign in a TV with the phone (0003_device_login.sql)
+
+Run `0003_device_login.sql` after 0001 and 0002 (SQL editor, safe to re-run); test with `tests/device_login_test.sql`.
+Nothing to switch on in the dashboard. Flow, all `POST {URL}/rest/v1/rpc/<name>`:
+1. TV (guest session): `request_device_login` `{"device_name":"Living room TV"}` -> `"K7M2QX4P"` (valid 10 minutes; show
+   it as a QR code). Max 10 requests per hour, else HTTP 400 `too_many_requests`.
+2. Phone/PC (signed in, has a space): `approve_device_login` `{"code":"K7M2QX4P"}` -> `true`, or `false` for any
+   problem (wrong, expired, used, your own TV), or HTTP 400 `too_many_attempts` (shares the 5-per-10-minutes counter
+   of pairing codes).
+3. TV polls `check_device_login` `{}` -> `null` while waiting; once approved, the account's space id (once). The TV
+   has left its old guest space (and that space's data is deleted if it was the only member).

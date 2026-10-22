@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { DELETE_WORD, MIN_PASSWORD, deleteConfirmed, type MergeChoice } from './accounts';
 import { syncEnabled } from './config';
 import { useSyncStatus } from './status';
+import { SignInTvRow } from './TvApprove';
 import { MergeDialog, useAccountAction } from './Welcome';
 
 type Panel = null | 'create' | 'signin' | 'password' | 'signout' | 'delete';
@@ -107,6 +108,7 @@ export function AccountSection() {
         )}
       </div>
       {done && <p role="status" className="field__hint">{done}</p>}
+      {account && <SignInTvRow />}
       {account && (
         <div className="field">
           <div className="field__text">

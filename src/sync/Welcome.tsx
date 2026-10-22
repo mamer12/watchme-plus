@@ -8,6 +8,7 @@ import { loadSyncService } from './runtime';
 import { clearRecovery, useRecovery } from './recovery';
 import type { SyncService } from './service';
 import { useSyncStatus } from './status';
+import { readPendingTv, sessionStore } from './tvLogin';
 
 export function reloadApp(): void {
   window.location.replace('/');
@@ -193,6 +194,7 @@ export function WelcomeScreen() {
   const [mode, setMode] = useState<Mode>('home');
   const { busy, error, run } = useAccountAction();
   const first = useRef<HTMLButtonElement>(null);
+  const [tvWaiting] = useState(() => !!readPendingTv(sessionStore()));
   useEffect(() => {
     if (mode === 'home') first.current?.focus();
   }, [mode]);
@@ -207,6 +209,7 @@ export function WelcomeScreen() {
       <header className="welcome__top">
         <Logo />
       </header>
+      {tvWaiting && <p role="status" className="welcome__sub">Sign in to approve your TV</p>}
       {mode === 'home' ? (
         <main className="welcome__main">
           <h1 className="welcome__title">Watch anywhere. Pick up where you left off.</h1>
