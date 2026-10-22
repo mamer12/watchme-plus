@@ -1,9 +1,11 @@
-// Spark Tonight: asks the user questions with Gemini and returns filters (never titles). Deno / Supabase Edge Function.
+// Spark Tonight: asks the user questions with Gemini (OpenRouter as fallback) and returns filters (never titles). Deno / Supabase Edge Function.
 // Needs a valid Supabase user JWT (anonymous users count). Secrets come from the environment only.
-import { parseModelText, RESPONSE_SCHEMA, systemPrompt, validateRequest, type ChatMsg } from './validate.ts';
+import { parseModelText, RESPONSE_SCHEMA, systemPrompt, validateRequest, type ChatMsg, type TonightReply } from './validate.ts';
+import { DEFAULT_OPENROUTER_MODEL, extractGeminiText, extractOpenRouterText, OPENROUTER_URL, openRouterBody, providerOrder, reasonForStatus } from './providers.ts';
 
 const MAX_BODY_BYTES = 16_000;
 const GEMINI_TIMEOUT_MS = 15_000;
+const OPENROUTER_TIMEOUT_MS = 20_000;
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite';
 const DEFAULT_ORIGINS = 'https://watch-me-plus.vercel.app,http://localhost:5173';
 
@@ -77,18 +79,59 @@ async function askGemini(messages: ChatMsg[], summary: Record<string, unknown>):
       }),
       signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
     });
-    if (res.status === 429) return { ok: false, reason: 'model_busy' };
     if (!res.ok) {
       console.error('gemini_http', res.status); // status only: never the key, the prompt or the chat
-      return { ok: false, reason: 'model_error' };
+      return { ok: false, reason: reasonForStatus(res.status) };
     }
-    const data = await res.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return typeof text === 'string' ? { ok: true, text } : { ok: false, reason: 'bad_model_output' };
+    const text = extractGeminiText(await res.json());
+    return text ? { ok: true, text } : { ok: false, reason: 'bad_model_output' };
   } catch (e) {
     console.error('gemini_failed', e instanceof Error ? e.name : 'error');
     return { ok: false, reason: 'model_error' };
   }
+}
+
+async function askOpenRouter(messages: ChatMsg[], summary: Record<string, unknown>): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  const key = env('OPENROUTER_API_KEY');
+  if (!key) return { ok: false, reason: 'not_configured' };
+  const model = env('OPENROUTER_MODEL').replace(/[^A-Za-z0-9._:/-]/g, '') || DEFAULT_OPENROUTER_MODEL;
+  const system = `${systemPrompt(env('SPARK_NAME') || 'Spark')}\n\nTASTE SUMMARY (data, JSON):\n${JSON.stringify(summary)}`;
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(openRouterBody(model, system, messages)),
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.error('openrouter_http', res.status); // status only: never the key, the prompt or the chat
+      return { ok: false, reason: reasonForStatus(res.status) };
+    }
+    const text = extractOpenRouterText(await res.json());
+    return text ? { ok: true, text } : { ok: false, reason: 'bad_model_output' };
+  } catch (e) {
+    console.error('openrouter_failed', e instanceof Error ? e.name : 'error');
+    return { ok: false, reason: 'model_error' };
+  }
+}
+
+/** Tries each configured provider in order; the same sanitizer runs on whichever answers. */
+async function ask(messages: ChatMsg[], summary: Record<string, unknown>): Promise<{ ok: true; value: TonightReply } | { ok: false; reason: string }> {
+  const order = providerOrder({ gemini: env('GEMINI_API_KEY'), openrouter: env('OPENROUTER_API_KEY') });
+  if (order.length === 0) return { ok: false, reason: 'not_configured' };
+  let reason = 'model_error';
+  for (const name of order) {
+    const answer = name === 'gemini' ? await askGemini(messages, summary) : await askOpenRouter(messages, summary);
+    if (!answer.ok) {
+      reason = answer.reason;
+      continue;
+    }
+    const parsed = parseModelText(answer.text);
+    if (parsed.ok) return parsed;
+    console.error('bad_output', name);
+    reason = parsed.reason;
+  }
+  return { ok: false, reason };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -114,10 +157,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (gate === 'limited') return fail(req, 429, 'rate_limited');
   if (gate === 'error') return fail(req, 503, 'unavailable');
 
-  const answer = await askGemini(checked.value.messages, checked.value.summary);
+  const answer = await ask(checked.value.messages, checked.value.summary);
   if (!answer.ok) return fail(req, answer.reason === 'not_configured' ? 503 : 502, answer.reason);
-
-  const parsed = parseModelText(answer.text);
-  if (!parsed.ok) return fail(req, 502, parsed.reason);
-  return reply(req, 200, { ok: true, ...parsed.value });
+  return reply(req, 200, { ok: true, ...answer.value });
 });

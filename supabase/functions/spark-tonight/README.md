@@ -1,11 +1,11 @@
 # spark-tonight (Edge Function)
 
-The AI chat behind "Spark Tonight". It asks the user short questions with Gemini and returns *filters* (never titles);
+The AI chat behind "Spark Tonight". It asks the user short questions with Gemini (OpenRouter as a fallback) and returns *filters* (never titles);
 the app turns the filters into real titles from its own catalog.
 
 - Needs a Supabase user JWT (anonymous users count). Limit: 30 requests per hour per user (`spark_tonight_hit()` from
   `supabase/migrations/0004_spark_tonight.sql`), at most 12 user turns per chat, small input caps.
-- `validate.ts` is pure and shared with the app (and unit-tested by vitest).
+- `providers.ts` (provider order, response extraction per provider) and `validate.ts` are pure and shared with the app (and unit-tested by vitest).
 
 ## Deploy (you run these yourself)
 
@@ -14,6 +14,13 @@ the app turns the filters into real titles from its own catalog.
    ```
    supabase secrets set GEMINI_API_KEY=...
    ```
+   Optional fallback provider, tried when Gemini is out of quota, errors, times out or returns invalid JSON (with
+   only one of the two keys set, only that provider is used):
+   ```
+   supabase secrets set OPENROUTER_API_KEY=...
+   ```
+   `OPENROUTER_MODEL` (default `meta-llama/llama-3.3-70b-instruct:free`; free ids change, pick a current `:free` one
+   that supports JSON mode on openrouter.ai/models). Keys live only in the function's environment and are never logged.
    Optional: `GEMINI_MODEL` (default `gemini-3.1-flash-lite`), `SPARK_NAME` (the brand used in the prompt, default
    `Spark`), `ALLOWED_ORIGINS` (comma separated, default the Vercel site and `http://localhost:5173`).
 3. Deploy:

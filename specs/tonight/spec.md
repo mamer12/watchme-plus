@@ -161,3 +161,23 @@ The system SHALL show the chat as bubbles with quick-reply chips, a free-text bo
 - GIVEN /tonight with the language set to Arabic and no function deployed
 - WHEN opened and the four questions are answered
 - THEN the layout is right-to-left, Tab reaches the chips, the input and the cards, and real titles with reasons appear
+
+### TONIGHT-016: Provider fallback
+The system SHALL try Gemini first and OpenRouter second, using only the providers whose key is set, and SHALL answer `{ok:false, reason}` when none is set or all fail (quota, 5xx, timeout or invalid JSON all move on to the next provider).
+
+- Verification: test
+
+#### Scenario: Provider fallback
+- GIVEN both keys set, or only one, or none
+- WHEN the provider order is computed
+- THEN it is gemini then openrouter, only the one set, or empty
+
+### TONIGHT-017: Provider response extraction
+The system SHALL read the model's JSON text from Gemini's and OpenRouter's response shapes, build the OpenRouter JSON-mode request with the same system prompt and history, and pass either text through the same sanitizer.
+
+- Verification: test
+
+#### Scenario: Provider response extraction
+- GIVEN a Gemini candidate, an OpenRouter choice, and malformed bodies
+- WHEN the text is extracted and sanitized
+- THEN both valid shapes give the same reply and malformed ones give null or `bad_model_output`
