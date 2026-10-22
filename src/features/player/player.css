@@ -785,3 +785,39 @@
   }
 }
 
+
+/* Loading percent: the number sits in the spinner; fixed box, so nothing shifts as it counts. */
+.spinner-pct {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+}
+
+.spinner-pct .spinner {
+  grid-area: 1 / 1;
+  width: 96px;
+  height: 96px;
+  margin: 0;
+}
+
+.spinner-pct__n {
+  grid-area: 1 / 1;
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.player__spinner {
+  flex-direction: column;
+}
+
+.player__reconnecting {
+  position: absolute;
+  top: calc(50% + 64px);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1rem;
+}

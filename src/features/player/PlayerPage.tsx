@@ -31,7 +31,8 @@ import { flush, getState, update, useSettings } from '../../state/store';
 import { syncFlush, syncPlaying } from '../../sync/bridge';
 import {
   clampTime,
-  countdownProgress,
+  countdownLeft,
+  endAction,
   familySkipTarget,
   familyToggleMessage,
   hevcSupported,
@@ -47,6 +48,11 @@ import { AudioSubsPanel, EpisodesPanel, SpeedPanel, VolumePanel } from './Panels
 import { ProgressBar } from './ProgressBar';
 import { parallelWanted } from '../../lib/parallelPage';
 import { createSwapEngine, type SwapOutcome } from './swapEngine';
+import { announcedPercent, bufferedAheadOf, LOAD_PERCENT, nextPercent, rawPercent } from './loadPercent';
+import { createLogGate, errorKind, newLadder, nextStep, noteGoodPlay, noteTrouble, shouldHandleError } from './recovery';
+
+/** Marks a link the service worker must leave alone (plain, single-connection path). */
+const PLAIN_MARK = '#wmp-plain';
 import { useActiveVideo, type Slot } from './useActiveVideo';
 import { useAutoQuality } from './useAutoQuality';
 import { usePlayerData } from './usePlayerData';
@@ -103,7 +109,19 @@ export default function PlayerPage() {
   const [speed, setSpeed] = useState(1);
   const [subText, setSubText] = useState('');
   const [nextDismissed, setNextDismissed] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [endLeft, setEndLeft] = useState<number | null>(null);
+  const [endCancelled, setEndCancelled] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [plainOnly, setPlainOnly] = useState(false);
+  const [loadPct, setLoadPct] = useState(0);
+  const pctRef = useRef(0);
+  const ladderRef = useRef(newLadder());
+  const ladderFor = useRef('');
+  const expiryReloads = useRef(0);
+  const recoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recoverTok = useRef(0);
+  const retryResume = useRef(false);
+  const logGate = useRef(createLogGate());
   const [ended, setEnded] = useState(false);
   const [pauseScreen, setPauseScreen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -114,7 +132,7 @@ export default function PlayerPage() {
   const isp = useIsp();
   const adaptive = isAdaptive(isp);
   // Parallel range fetching (service worker) answers the mirror's video; the <video> stays a plain no-cors request.
-  const parallel = adaptive && parallelWanted();
+  const parallel = adaptive && parallelWanted() && !plainOnly;
   const hevc = useMemo(() => hevcProbe(), []);
   const files = useMemo(() => (data ? playableFiles(data.files, hevc) : []), [data, hevc]);
   const episodes = data?.episodes ?? [];
@@ -198,11 +216,26 @@ export default function PlayerPage() {
     setQuality(chosen);
     setEnded(false);
     setNextDismissed(false);
-    setCountdown(0);
+    setEndCancelled(false);
+    setEndLeft(null);
     setVideoError(null);
     setWaiting(true);
     setTime(0);
-    pendingSeek.current = restart ? 0 : startPosition(getState(), id);
+    // A new episode starts the recovery ladder over; a reload of the same one (links, Try again) keeps its counters.
+    if (ladderFor.current !== data.id) {
+      ladderFor.current = data.id;
+      ladderRef.current = newLadder();
+      expiryReloads.current = 0;
+      setPlainOnly(false);
+    }
+    recoverTok.current += 1;
+    if (recoverTimer.current) clearTimeout(recoverTimer.current);
+    recoverTimer.current = null;
+    setRecovering(false);
+    pctRef.current = 0;
+    setLoadPct(0);
+    pendingSeek.current = restart && !retryResume.current ? 0 : startPosition(getState(), id);
+    retryResume.current = false;
     // Only when a new video's data arrives.
     // The quality preference is read once here; changes go through changeQuality.
   }, [data]);
@@ -217,14 +250,17 @@ export default function PlayerPage() {
     // A seamless swap already put this file on screen.
     if (swappedTo.current === quality.url) return;
     let alive = true;
-    void resolvePlayUrl(quality.url, { adaptive, parallel }).then((u) => alive && setSrc(u));
+    void resolvePlayUrl(quality.url, { adaptive, parallel }).then((u) => alive && setSrc(plainOnly ? u + PLAIN_MARK : u));
     return () => {
       alive = false;
     };
-  }, [quality, adaptive, parallel]);
+  }, [quality, adaptive, parallel, plainOnly]);
 
   useEffect(() => {
     if (av.urls.current[av.activeRef.current] !== src) {
+      recoverTok.current += 1;
+      pctRef.current = 0;
+      setLoadPct(0);
       engineRef.current?.cancel('cancelled');
       av.load(av.activeRef.current, src);
     }
@@ -296,14 +332,15 @@ export default function PlayerPage() {
     async (file: VideoFile): Promise<SwapOutcome> => {
       const my = epoch.current;
       if (!av.video.current || engine.busy()) return 'cancelled';
-      const url = await resolvePlayUrl(file.url, { adaptive, parallel });
+      const resolved = await resolvePlayUrl(file.url, { adaptive, parallel });
+      const url = plainOnly ? resolved + PLAIN_MARK : resolved;
       if (my !== epoch.current || engine.busy()) return 'cancelled';
       pendingFile.current = { file, url };
       const out = await engine.swapTo(file.height, url);
       if (out === 'swapped') writeWorkingQuality(isp, file.resolution);
       return out;
     },
-    [av, engine, adaptive, parallel, isp],
+    [av, engine, adaptive, parallel, plainOnly, isp],
   );
 
   const cap = parseInt(settings.qualityCap, 10) || 1080;
@@ -428,7 +465,6 @@ export default function PlayerPage() {
   const goNext = useCallback(() => {
     if (!next) return;
     save();
-    setCountdown(0);
     setNextDismissed(true);
     navigate(`/watch/${next.id}`, { replace: true });
   }, [next, navigate, save]);
@@ -507,33 +543,36 @@ export default function PlayerPage() {
     return () => cancelAnimationFrame(raf);
   }, [subs.cues, settings.subtitleOffset]);
 
-  // ---- next episode countdown -----------------------------------------------------------------
+  // ---- next episode ---------------------------------------------------------------------------
   const remaining = duration - time;
-  // At the natural end the card shows even if it never came up (seeked to the very end).
-  const plan = nextCardPlan(duration, ended ? Infinity : time, settings.autoplayNext, nextDismissed, !!next);
-  const nextCard = plan.show && !!next;
-  const countdownOn = nextCard && settings.autoplayNext;
-  // Seeking back before the card resets a dismissal and the countdown.
+  // The button (no countdown) from the credits on; the next episode starts by itself only after the video has ended.
+  const plan = nextCardPlan(duration, time, nextDismissed, !!next);
+  const nextCard = plan.show && !!next && !ended;
+  const endMode = endAction({ ended, hasNext: !!next, autoplay: settings.autoplayNext, suppressed: nextDismissed || endCancelled });
+  // Seeking back before the button resets a dismissal.
   useEffect(() => {
-    if (!ended && time < plan.at) {
-      if (nextDismissed) setNextDismissed(false);
-      if (countdown > 0) setCountdown(0);
+    if (!ended && time < plan.at && nextDismissed) setNextDismissed(false);
+  }, [time, plan.at, ended, nextDismissed]);
+  useEffect(() => {
+    if (!ended && endCancelled) setEndCancelled(false);
+  }, [ended, endCancelled]);
+  useEffect(() => {
+    if (endMode !== 'countdown') {
+      setEndLeft(null);
+      return;
     }
-  }, [time, plan.at, ended, nextDismissed, countdown]);
-  useEffect(() => {
-    if (!countdownOn || !(playing || ended)) return;
-    const started = performance.now() - countdown * 10_000;
+    const started = performance.now();
+    setEndLeft(countdownLeft(0));
     const t = setInterval(() => {
-      const p = countdownProgress(performance.now() - started);
-      setCountdown(p);
-      if (p >= 1) {
+      const left = countdownLeft(performance.now() - started);
+      setEndLeft(left);
+      if (left <= 0) {
         clearInterval(t);
         goNext();
       }
-    }, 100);
+    }, 250);
     return () => clearInterval(t);
-    // `countdown` is read once so a paused countdown resumes where it stopped.
-  }, [countdownOn, playing, ended, goNext]);
+  }, [endMode, goNext]);
 
   // ---- keyboard -------------------------------------------------------------------------------
   const intro = data?.details ? rangeAt(time, data.details.introSkips) : null;
@@ -577,6 +616,7 @@ export default function PlayerPage() {
           break;
         case 'Escape':
           if (panel) setPanel(null);
+          else if (endMode === 'countdown') setEndCancelled(true);
           else if (nextCard) setNextDismissed(true);
           else handled = false;
           break;
@@ -590,13 +630,18 @@ export default function PlayerPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, seekBy, seekTo, setVolume, toggleMute, toggleFullscreen, panel, nextCard, intro, poke, settings.muted, settings.volume]);
+  }, [togglePlay, seekBy, seekTo, setVolume, toggleMute, toggleFullscreen, panel, nextCard, endMode, intro, poke, settings.muted, settings.volume]);
 
   // ---- video events ---------------------------------------------------------------------------
   const onTimeUpdate = () => {
     const v = video.current;
     if (!v) return;
     setTime(v.currentTime);
+    if (!v.paused && !v.seeking && v.readyState >= 3) {
+      const before = ladderRef.current;
+      ladderRef.current = noteGoodPlay(before, Date.now());
+      if (before.goodSince !== null && ladderRef.current.reseats === 0 && before.reseats > 0) expiryReloads.current = 0;
+    }
     if (loaded.current) position.current = { id: loaded.current.id, time: v.currentTime, duration: v.duration };
     if (v.buffered.length) setBuffered(v.buffered.end(v.buffered.length - 1));
     const skipTo = familySkipTarget(v.currentTime, data?.details?.familySkips ?? [], settings.familySkips);
@@ -624,21 +669,92 @@ export default function PlayerPage() {
     setEnded(true);
   };
 
-  const onVideoError = () => {
-    // A signed link that ran out: ask the catalog for fresh ones and carry on from here.
-    if (src && isExpiring(src, Date.now(), 0)) {
+  /** Where playback was: the cached position, never read from an element that may be detached. */
+  const lastPosition = () => (position.current.id === id ? position.current.time : pendingSeek.current ?? 0);
+
+  const onVideoError = (slot: Slot) => {
+    const el = av.el(slot);
+    if (!shouldHandleError({ fromActive: av.isActive(slot), errorSrc: el?.getAttribute('src'), expectedSrc: av.urls.current[slot] })) return;
+    const kind = errorKind(el?.error?.code);
+    if (logGate.current(`${kind}:${quality?.height ?? 0}`, Date.now())) console.warn('[player] video error:', kind, el?.error?.message ?? '');
+    if (recoverTimer.current) return; // a re-seat is already waiting
+    ladderRef.current = noteTrouble(ladderRef.current);
+    const at = lastPosition();
+    // A signed link that ran out: ask the catalog for fresh ones and carry on from here (twice at most per ladder).
+    if (src && isExpiring(src, Date.now(), 0) && expiryReloads.current < 2) {
+      expiryReloads.current += 1;
       save();
+      retryResume.current = true;
       setReloadKey((k) => k + 1);
       return;
     }
     const lower = quality ? [...files].reverse().find((f) => f.height < quality.height) : undefined;
-    if (lower) {
-      pendingSeek.current = video.current?.currentTime ?? null;
-      setQuality(lower);
-    } else {
-      setVideoError("This video couldn't be played in this browser.");
+    const { step, ladder } = nextStep(ladderRef.current, { kind, parallel, canLower: !!lower });
+    ladderRef.current = ladder;
+    engineRef.current?.cancel('error');
+    switch (step.action) {
+      case 'reseat': {
+        // Same source, same moment, after a short wait; the buffering state shows meanwhile.
+        setRecovering(true);
+        setWaiting(true);
+        pendingSeek.current = at;
+        const tok = ++recoverTok.current;
+        recoverTimer.current = setTimeout(() => {
+          recoverTimer.current = null;
+          if (tok !== recoverTok.current) return;
+          const s = av.activeRef.current;
+          const url = av.urls.current[s];
+          if (url) av.load(s, url);
+        }, step.delayMs);
+        return;
+      }
+      case 'plain':
+        setRecovering(true);
+        setWaiting(true);
+        pendingSeek.current = at;
+        swappedTo.current = null;
+        setPlainOnly(true);
+        return;
+      case 'lower':
+        if (!lower) return;
+        setRecovering(true);
+        setWaiting(true);
+        pendingSeek.current = at;
+        swappedTo.current = null;
+        setQuality(lower);
+        return;
+      default:
+        save();
+        setRecovering(false);
+        setVideoError("This video couldn't be played right now.");
     }
   };
+
+  useEffect(
+    () => () => {
+      if (recoverTimer.current) clearTimeout(recoverTimer.current);
+    },
+    [],
+  );
+
+  // ---- loading percent ------------------------------------------------------------------------
+  const loading = (waiting || !data) && !ended;
+  useEffect(() => {
+    if (!loading) return;
+    pctRef.current = 0;
+    setLoadPct(0);
+    const t = setInterval(() => {
+      const v = video.current;
+      if (!v) return;
+      const raw = rawPercent(bufferedAheadOf(v.buffered, v.currentTime), v.duration - v.currentTime);
+      const n = nextPercent(pctRef.current, raw, false);
+      if (n !== pctRef.current) {
+        pctRef.current = n;
+        setLoadPct(n);
+      }
+    }, LOAD_PERCENT.TICK_MS);
+    return () => clearInterval(t);
+  }, [loading]);
 
   // ---- pointer: click / tap / double-tap ------------------------------------------------------
   const onSurfaceUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -695,6 +811,10 @@ export default function PlayerPage() {
               type="button"
               className="btn btn--play"
               onClick={() => {
+                ladderRef.current = newLadder();
+                expiryReloads.current = 0;
+                retryResume.current = true;
+                setPlainOnly(false);
                 setVideoError(null);
                 setReloadKey((k) => k + 1);
               }}
@@ -737,7 +857,15 @@ export default function PlayerPage() {
             onLoadedMetadata={on(onLoadedMetadata)}
             onDurationChange={on(() => setDuration(video.current?.duration ?? 0))}
             onTimeUpdate={on(onTimeUpdate)}
-            onSeeking={on(() => engine.notify('seeking'))}
+            onSeeking={on(() => {
+              engine.notify('seeking');
+              ladderRef.current = noteTrouble(ladderRef.current);
+              const v = video.current;
+              if (v && bufferedAheadOf(v.buffered, v.currentTime) < 0.1) {
+                pctRef.current = 0;
+                setLoadPct(0);
+              }
+            })}
             onSeeked={on(() => {
               const v = video.current;
               if (v && loaded.current) position.current = { id: loaded.current.id, time: v.currentTime, duration: v.duration };
@@ -755,11 +883,20 @@ export default function PlayerPage() {
               syncFlush();
               engine.notify('pause');
             })}
-            onWaiting={on(() => setWaiting(true))}
-            onPlaying={on(() => setWaiting(false))}
-            onCanPlay={on(() => setWaiting(false))}
+            onWaiting={on(() => {
+              ladderRef.current = noteTrouble(ladderRef.current);
+              setWaiting(true);
+            })}
+            onPlaying={on(() => {
+              setWaiting(false);
+              setRecovering(false);
+            })}
+            onCanPlay={on(() => {
+              setWaiting(false);
+              setRecovering(false);
+            })}
             onEnded={on(onEnded)}
-            onError={on(onVideoError)}
+            onError={() => onVideoError(slot)}
             onDoubleClick={() => void toggleFullscreen()}
           >
             {subs.vttUrl && settings.subtitleLang !== 'off' && (
@@ -781,9 +918,10 @@ export default function PlayerPage() {
         </div>
       )}
 
-      {(waiting || !data) && !ended && (
+      {loading && (
         <div className="player__spinner">
-          <Spinner label="Buffering" />
+          <Spinner label="Buffering" percent={data ? loadPct : null} announce={data ? announcedPercent(loadPct) : null} />
+          {recovering && <p className="player__reconnecting">Reconnecting…</p>}
         </div>
       )}
 
@@ -851,17 +989,16 @@ export default function PlayerPage() {
 
       {nextCard && next && (
         <div className="next-card">
-          <button type="button" className="btn btn--ghost" onClick={() => setNextDismissed(true)}>
-            Watch Credits
+          <button type="button" className="btn btn--ghost" aria-label="Dismiss" onClick={() => setNextDismissed(true)}>
+            ✕
           </button>
-          <button type="button" className="btn btn--next" onClick={goNext} style={{ ['--fill' as string]: `${countdownOn ? countdown * 100 : 0}%` }}>
-            <span className="btn--next__fill" aria-hidden="true" />
-            <NextEpisodeIcon size={20} /> {settings.autoplayNext ? 'Next Episode' : 'Play next'}
+          <button type="button" className="btn btn--next" onClick={goNext}>
+            <NextEpisodeIcon size={20} /> Next Episode
           </button>
         </div>
       )}
 
-      {ended && !nextCard && (
+      {ended && (
         <div className="end-screen">
           {next ? (
             <>
@@ -870,8 +1007,13 @@ export default function PlayerPage() {
                 Season {next.season ?? 1}: Episode {next.episode}
               </h2>
               <button type="button" className="btn btn--play" onClick={goNext}>
-                <PlayIcon size={22} /> Play Next Episode
+                <PlayIcon size={22} /> {endMode === 'countdown' && endLeft !== null ? `Next episode in ${endLeft}` : 'Play Next Episode'}
               </button>
+              {endMode === 'countdown' && (
+                <button type="button" className="btn btn--ghost" onClick={() => setEndCancelled(true)}>
+                  Cancel
+                </button>
+              )}
             </>
           ) : (
             <>

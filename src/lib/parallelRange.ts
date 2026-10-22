@@ -4,6 +4,7 @@
  * No DOM or worker globals here: everything the logic needs is injected, so it runs under Node tests.
  */
 import { mirror } from '../api/endpoints';
+import { pieceFailureAction, remainingSpan } from './parallelPolicy';
 
 export const PF = {
   /** Most bytes answered per response; the browser asks for the next range itself. */
@@ -131,7 +132,6 @@ export function createLimiter(max: number) {
 }
 
 export const abortError = (): Error => Object.assign(new Error('aborted'), { name: 'AbortError' });
-const isAbort = (e: unknown): boolean => (e as { name?: string } | null)?.name === 'AbortError';
 
 // ---- ordered stream -----------------------------------------------------------------------------
 
@@ -154,7 +154,10 @@ interface Piece {
 /**
  * Starts every piece at once (`open` decides how many really run: the limiter lives inside it) and returns a stream
  * that emits them in order: piece 0 as soon as it has bytes, piece 1 after piece 0 ended, and so on. A piece whose
- * connection drops is reopened from the byte it reached, `retries` times, then the stream errors. `signal` aborts all.
+ * connection drops or times out is reopened from the byte it reached, `retries` times. If it still fails and a
+ * `fallback` is given, the other pieces are dropped and one plain request supplies the rest of the span, so one bad
+ * connection never fails the response while bytes can still be had; only then the stream errors. `signal` aborts all
+ * (the browser cancelled the request: nothing is retried).
  * Pieces that were only partly filled by the server (EOF) simply end short; the stream ends with the last piece.
  */
 export function orderedPieceStream(
@@ -163,6 +166,7 @@ export function orderedPieceStream(
   signal: AbortSignal,
   retries: number = PF.RETRIES,
   prefetched?: { index: number; body: ReadableStream<Uint8Array> | null },
+  fallback?: OpenPiece,
 ): ReadableStream<Uint8Array> {
   const own = new AbortController();
   const stop = () => own.abort();
@@ -170,15 +174,21 @@ export function orderedPieceStream(
   else signal.addEventListener('abort', stop, { once: true });
 
   const pieces: Piece[] = ranges.map((range) => ({ range, chunks: [], received: 0, done: false, error: null, wake: null }));
+  /** One controller per piece, so the pieces after a failed one can be dropped without touching the rest. */
+  const stops = new Map<Piece, AbortController>();
 
-  const pump = async (p: Piece, first?: ReadableStream<Uint8Array> | null) => {
+  const pump = async (p: Piece, first: ReadableStream<Uint8Array> | null | undefined, opener: OpenPiece, tries: number) => {
+    const mine = new AbortController();
+    stops.set(p, mine);
+    const onOwn = () => mine.abort();
+    own.signal.addEventListener('abort', onOwn, { once: true });
     let attempts = 0;
     let body = first;
     try {
       for (;;) {
         try {
           if (body === undefined) {
-            const r = await open({ start: p.range.start + p.received, end: p.range.end }, own.signal);
+            const r = await opener({ start: p.range.start + p.received, end: p.range.end }, mine.signal);
             body = r.body;
           }
           if (body) {
@@ -195,7 +205,8 @@ export function orderedPieceStream(
           }
           break;
         } catch (e) {
-          if (own.signal.aborted || isAbort(e) || attempts >= retries) throw e;
+          // A dropped piece is only retried for a real failure, never because it was cancelled.
+          if (mine.signal.aborted || pieceFailureAction({ aborted: own.signal.aborted, attempts, retries: tries, canFallback: false }) !== 'retry') throw e;
           attempts += 1;
           body = undefined;
         }
@@ -203,13 +214,28 @@ export function orderedPieceStream(
     } catch (e) {
       p.error = e;
     }
+    own.signal.removeEventListener('abort', onOwn);
     p.done = true;
     p.wake?.();
   };
 
-  pieces.forEach((p, i) => void pump(p, prefetched && prefetched.index === i ? prefetched.body : undefined));
+  pieces.forEach((p, i) => void pump(p, prefetched && prefetched.index === i ? prefetched.body : undefined, open, retries));
 
   let at = 0;
+  let fellBack = false;
+  /** Replaces piece `at` and everything after it by one plain request for the missing bytes. */
+  const fallBackFrom = (): boolean => {
+    const p = pieces[at]!;
+    const span = remainingSpan(ranges, at, p.received);
+    if (!fallback || fellBack || !span) return false;
+    fellBack = true;
+    for (const later of pieces.splice(at + 1)) stops.get(later)?.abort();
+    const tail: Piece = { range: span, chunks: [], received: 0, done: false, error: null, wake: null };
+    pieces[at] = tail;
+    void pump(tail, undefined, fallback, retries);
+    return true;
+  };
+
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       while (at < pieces.length) {
@@ -220,6 +246,7 @@ export function orderedPieceStream(
           return;
         }
         if (p.error) {
+          if (!own.signal.aborted && pieceFailureAction({ aborted: false, attempts: retries, retries, canFallback: !!fallback && !fellBack }) === 'fallback' && fallBackFrom()) continue;
           own.abort();
           controller.error(p.error);
           return;

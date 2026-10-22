@@ -78,6 +78,8 @@ sw.addEventListener('fetch', (e) => {
     return;
   }
   if (!isMirrorMediaHost(url.hostname)) return;
+  // The page's plain-path fallback after parallel fetching kept failing: let the browser handle it as it is.
+  if (url.hash === '#wmp-plain') return;
   e.respondWith(
     (async () => {
       await ready;
@@ -86,8 +88,10 @@ sw.addEventListener('fetch', (e) => {
         const res = await fetcher.respond({ url: req.url, range, signal: req.signal });
         if (res) return withStats(res);
       } catch (err) {
-        if (req.signal.aborted) throw err;
+        // The browser cancelled the request (a seek): nobody is listening, so no error is raised for the video element.
+        if (req.signal.aborted) return new Response(null, { status: 204 });
       }
+      if (req.signal.aborted) return new Response(null, { status: 204 });
       return fetch(req);
     })(),
   );

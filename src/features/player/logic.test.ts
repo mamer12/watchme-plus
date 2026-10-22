@@ -3,7 +3,9 @@ import { parseTitle } from '../../api/parse';
 import type { Title, VideoFile } from '../../api/types';
 import {
   clampTime,
-  countdownProgress,
+  countdownLeft,
+  endAction,
+  COUNTDOWN_AT_END,
   familySkipTarget,
   familyToggleMessage,
   hevcSupported,
@@ -65,32 +67,61 @@ describe('player logic', () => {
     expect(familySkipTarget(100, scenes, true)).toBeNull();
   });
 
-  it('PLAYER-009: finds the next episode and fills the countdown over 10 seconds', () => {
+  it('PLAYER-009: finds the next episode', () => {
     const eps = [ep('1', 1, 1), ep('2', 1, 2), ep('3', 2, 1)];
     expect(nextEpisode(eps, '2')?.id).toBe('3');
     expect(nextEpisode(eps, '3')).toBeNull();
     expect(nextEpisode(eps, 'x')).toBeNull();
-    expect(countdownProgress(0)).toBe(0);
-    expect(countdownProgress(5000)).toBe(0.5);
-    expect(countdownProgress(12000)).toBe(1);
   });
 
-  it('PLAYER-017: 22-minute episode shows the card 8 s into the estimated credits', () => {
+  it('PLAYER-009: the countdown runs 5 seconds, only after the video ended, and can be cancelled', () => {
+    expect(COUNTDOWN_AT_END).toBe(5);
+    expect(countdownLeft(0)).toBe(5);
+    expect(countdownLeft(1200)).toBe(4);
+    expect(countdownLeft(4999)).toBe(1);
+    expect(countdownLeft(5000)).toBe(0);
+    const base = { hasNext: true, autoplay: true, suppressed: false };
+    expect(endAction({ ...base, ended: true })).toBe('countdown');
+    expect(endAction({ ...base, ended: true, suppressed: true })).toBe('upnext'); // cancelled or dismissed
+  });
+
+  it('PLAYER-009: the next episode never starts while the video is still playing', () => {
+    const base = { hasNext: true, autoplay: true, suppressed: false };
+    expect(endAction({ ...base, ended: false })).toBe('none');
+    // The button from the card time on is plain: nothing in its plan can advance.
+    expect(Object.keys(nextCardPlan(1320, 1318, false))).toEqual(['at', 'show']);
+  });
+
+  it('PLAYER-009: with autoplay off the end shows the button only; last episodes and movies show nothing', () => {
+    expect(endAction({ ended: true, hasNext: true, autoplay: false, suppressed: false })).toBe('upnext');
+    expect(endAction({ ended: true, hasNext: false, autoplay: true, suppressed: false })).toBe('none');
+  });
+
+  it('PLAYER-009: a video with a post-credits scene is not cut: the card shows during the credits, the countdown only after the end', () => {
+    const duration = 1320; // credits at ~1274 s, a scene plays until 1320 s
+    for (const t of [1282, 1300, 1319.9]) {
+      expect(nextCardPlan(duration, t, false).show).toBe(true);
+      expect(endAction({ ended: false, hasNext: true, autoplay: true, suppressed: false })).toBe('none');
+    }
+    expect(endAction({ ended: true, hasNext: true, autoplay: true, suppressed: false })).toBe('countdown');
+  });
+
+  it('PLAYER-017: 22-minute episode shows the button 8 s into the estimated credits', () => {
     expect(nextCardAt(1320)).toBeCloseTo(1281.8, 1);
-    expect(nextCardPlan(1320, 1281, true, false).show).toBe(false);
-    expect(nextCardPlan(1320, 1282, true, false)).toMatchObject({ show: true, countdown: true });
+    expect(nextCardPlan(1320, 1281, false).show).toBe(false);
+    expect(nextCardPlan(1320, 1282, false).show).toBe(true);
   });
 
-  it('PLAYER-017: 45-minute episode shows the card about 86 s before the end', () => {
+  it('PLAYER-017: 45-minute episode shows the button about 86 s before the end', () => {
     expect(2700 - nextCardAt(2700)).toBeCloseTo(86.5, 1);
   });
 
-  it('PLAYER-017: 2-hour film clamps credits to 150 s (but films never show the card)', () => {
+  it('PLAYER-017: 2-hour film clamps credits to 150 s (but films never show the button)', () => {
     expect(7200 - nextCardAt(7200)).toBeCloseTo(142, 1);
-    expect(nextCardPlan(7200, 7100, true, false, false).show).toBe(false);
+    expect(nextCardPlan(7200, 7100, false, false).show).toBe(false);
   });
 
-  it('PLAYER-017: short clips show the card at 60% and never later than 15 s before the end', () => {
+  it('PLAYER-017: short clips show the button at 60% and never later than 15 s before the end', () => {
     expect(nextCardAt(100)).toBe(63);
     expect(nextCardAt(60)).toBe(36); // floor 60%
     expect(nextCardAt(30)).toBe(30); // too short: at the end
@@ -102,19 +133,14 @@ describe('player logic', () => {
     expect(nextCardAt(1320, 100)).toBe(792); // never before 60%
   });
 
-  it('PLAYER-017: a dismissed card stays dismissed', () => {
-    expect(nextCardPlan(1320, 1300, true, true).show).toBe(false);
-    expect(nextCardPlan(1320, Infinity, true, true).show).toBe(false);
+  it('PLAYER-017: a dismissed button stays dismissed and never autoplays at the end', () => {
+    expect(nextCardPlan(1320, 1300, true).show).toBe(false);
+    expect(endAction({ ended: true, hasNext: true, autoplay: true, suppressed: true })).toBe('upnext');
   });
 
-  it('PLAYER-017: with autoplay off the card has no countdown', () => {
-    expect(nextCardPlan(1320, 1300, false, false)).toMatchObject({ show: true, countdown: false });
-  });
-
-  it('PLAYER-017: seeking back before the card hides it; the end always shows it', () => {
-    expect(nextCardPlan(1320, 1300, true, false).show).toBe(true);
-    expect(nextCardPlan(1320, 600, true, false).show).toBe(false);
-    expect(nextCardPlan(1320, Infinity, true, false)).toMatchObject({ show: true, countdown: true });
+  it('PLAYER-017: seeking back before the button hides it', () => {
+    expect(nextCardPlan(1320, 1300, false).show).toBe(true);
+    expect(nextCardPlan(1320, 600, false).show).toBe(false);
   });
 
   it('PLAYER-011: offers 0.5× to 1.5× playback speeds', () => {

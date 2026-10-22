@@ -107,26 +107,32 @@ notice, and play them when it is off.
 - THEN it continues at 966 s
 
 ### PLAYER-009: Next Episode
-The system SHALL, for series, show "Watch Credits" and "Next Episode" from the moment given by PLAYER-017; with
-autoplay on, the Next Episode button fills over 10 seconds of playback and then plays the next episode; Watch Credits,
-Back or Escape dismisses the card for good (no autoplay at the natural end); with autoplay off the card has a "Play
-next" button and no countdown; at the end of a dismissed episode an "Up Next" screen offers the next episode. The last
-episode and movies never show it.
+The system SHALL, for series, never start the next episode while the current one is still playing. From the moment
+given by PLAYER-017 it SHALL show a plain "Next Episode" button (no countdown, no automatic advance; click or Enter goes
+next at once; a close button, Back or Escape dismisses it). Only when the video ends naturally (after-credits scenes
+are part of the file) and the "Autoplay next episode" setting is on, it SHALL show "Next episode in 5" with a
+5-second countdown the viewer can cancel (Cancel button or Escape); with the setting off, or after a dismissal or a
+cancel, the end shows an "Up Next" screen with the button and nothing autoplays. The last episode and movies show none
+of this.
 
 - Verification: test
 - Depends on: SET-004, PLAYER-017
 
-#### Scenario: Credits
-- GIVEN a 22-minute S1:E1 at 1282 s and autoplay on
-- WHEN 10 seconds of playback pass
+#### Scenario: Credits with a scene after them
+- GIVEN a 22-minute S1:E1 with a scene after the credits, autoplay on
+- WHEN playback passes 1282 s
+- THEN the button shows and the episode keeps playing to its end
+
+#### Scenario: End of video
+- GIVEN the video ended and autoplay is on
+- WHEN 5 seconds pass without Cancel
 - THEN S1:E2 starts
 
 ### PLAYER-017: Next Episode timing
-The system SHALL estimate the credits length as 3.5% of the duration clamped to 45–150 s (or use a catalog credits
-start if one exists), show the card 8 s after the credits start, never before 60% of the duration nor later than 15 s
-before the end (episodes too short for that show it at the end). Seeking back before that time hides the card and
-resets a dismissal; an episode that ends without the card having shown shows it, with the countdown unless autoplay is
-off.
+The system SHALL estimate the credits length as 3.5% of the duration clamped to 45-150 s (or use a catalog credits
+start if one exists), show the button 8 s after the credits start, never before 60% of the duration nor later than 15 s
+before the end (episodes too short for that show it at the end). Seeking back before that time hides the button and
+resets a dismissal.
 
 - Verification: test
 - Depends on: PLAYER-009
@@ -134,20 +140,20 @@ off.
 #### Scenario: 22-minute episode
 - GIVEN a 1320 s episode (credits 46.2 s)
 - WHEN playback reaches 1281.8 s
-- THEN the card appears (38 s before the end) and the next episode starts at 1291.8 s
+- THEN the button appears (38 s before the end) and playback continues
 
 #### Scenario: 45-minute episode
 - GIVEN a 2700 s episode (credits 94.5 s)
 - WHEN playback reaches 2613.5 s
-- THEN the card appears (86.5 s before the end)
+- THEN the button appears (86.5 s before the end)
 
 #### Scenario: 2-hour film
 - GIVEN a movie of 7200 s
 - WHEN it nears the end
-- THEN no card shows (a series of that length would show it at 7058 s, credits clamped to 150 s)
+- THEN no button shows (a series of that length would show it at 7058 s, credits clamped to 150 s)
 
 #### Scenario: Dismissed
-- GIVEN the viewer pressed Back on the card
+- GIVEN the viewer pressed Back on the button
 - WHEN the episode ends
 - THEN the Up Next screen shows and nothing autoplays
 
@@ -221,6 +227,50 @@ the button is shown on and cannot be switched off.
 - GIVEN a title with 3 flagged scenes and Family mode off
 - WHEN the viewer presses the Family mode button
 - THEN "Family mode on · 3 scenes will be skipped" is shown and the setting is on
+
+### PLAYER-018: Recovery before the error screen
+The system SHALL, when the video reports an error, climb a bounded ladder per load before the "Playback problem"
+screen, with the buffering state (and "Reconnecting...") shown meanwhile: re-seat the same source at the current time up
+to twice (after 1 s, then 3 s); then load the file through the plain, non-parallel path; then one quality lower at the
+same position; only then the error screen, whose Try again resumes from the saved position. A decode error re-seats
+once and then steps down. The counters start over after 20 s of good playback, so the ladder never loops.
+
+- Verification: test
+- Depends on: PLAYER-015, PERF-018
+
+#### Scenario: Slow server timeout
+- GIVEN a network error during playback
+- WHEN the player re-seats the source after 1 s and then 3 s and both fail
+- THEN the plain path is tried, then a lower quality, and only then "Playback problem" appears
+
+### PLAYER-019: Loading percent
+The system SHALL show, centred in the loading spinner, a number counting up while the video loads (first start, after a
+seek into unbuffered data, re-buffering): seconds buffered ahead of the playhead over 6 s (or what is left of the
+video). It never decreases within one loading episode, rises at most 8 points per 250 ms, stays at 99 until the video
+is playing, starts again from 0 on a new source, an unbuffered seek or another episode, is hidden when playback runs
+and while a seamless quality swap loads the second element, and is read to screen readers as "Loading N percent" every 10
+points.
+
+- Verification: test
+- Depends on: PLAYER-018
+
+#### Scenario: Seek
+- GIVEN playback running
+- WHEN the viewer seeks into unbuffered data
+- THEN the spinner shows 0% and counts up until the video plays
+
+### PLAYER-020: Errors from the right element only
+The system SHALL handle video errors only from the active element and from the source it holds now, ignoring errors
+of the standby element and of older sources (the seamless swap swaps elements), SHALL read the position from a cached
+value, and SHALL write the same error to the console at most once per 10 seconds.
+
+- Verification: test
+- Depends on: PLAYER-018, PERF-014
+
+#### Scenario: After a swap
+- GIVEN the quality swap just made the second element active
+- WHEN the emptied first element reports an error
+- THEN nothing happens
 
 ### PLAYER-015: Lazy route and errors
 The system SHALL load the player code only when `/watch/:id` opens, and SHALL show a clear message with Try again
@@ -324,6 +374,33 @@ reopened from the byte it reached before the response is failed.
 - GIVEN the mirror answers 429 twice
 - WHEN the player asks for a range
 - THEN the original request is sent as it was
+
+### PERF-018: Patient pieces
+The system SHALL give a piece at least 8 s to answer its first byte and at least 20 s of silence in its body before
+treating it as failed, retry a failed or timed-out piece once on a new connection, and when it still fails replace the
+rest of the response by one plain request for the remaining bytes, so one slow connection never fails a response that
+other pieces delivered. A first piece that cannot be had hands the original request back to the plain path.
+
+- Verification: test
+- Depends on: PERF-012, `src/lib/parallelPolicy.ts`
+
+#### Scenario: Slow mirror
+- GIVEN a piece stalls twice
+- WHEN the player asks for a range
+- THEN the response still completes with every byte, the rest fetched by one plain request
+
+### PERF-019: Cancelled means quiet
+The system SHALL abort all connections of a range request the moment the browser cancels it (a seek), so they stop
+counting against the 8 connections, SHALL NOT report that as an error to the video element, and SHALL ask a file's
+host and size once (HEAD), asking again only when the signed link is about to expire or was refused (403/410).
+
+- Verification: test
+- Depends on: PERF-011
+
+#### Scenario: Seeking
+- GIVEN a response is still downloading
+- WHEN the viewer seeks and the browser cancels it
+- THEN its pieces are aborted and the next range reuses the known file size
 
 ### PERF-013: Off by default, mirror only
 The system SHALL leave every other request alone: parallel fetching runs only for the mirror's video hosts, only after

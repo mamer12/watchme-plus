@@ -9,7 +9,8 @@ export const CREDITS_MAX_SECONDS = 150;
 export const CARD_AFTER_CREDITS_SECONDS = 8;
 export const CARD_MIN_FRACTION = 0.6;
 export const CARD_LAST_SECONDS = 15;
-export const COUNTDOWN_SECONDS = 10;
+/** Seconds the viewer can cancel the autoplay countdown, started only when the video has ended. */
+export const COUNTDOWN_AT_END = 5;
 export const SEEK_STEP = 10;
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 export const DEFAULT_QUALITY = '1080p';
@@ -65,11 +66,9 @@ export function nextEpisode(episodes: Title[], currentId: string): Title | null 
 }
 
 export interface NextCardPlan {
-  /** Playback time (s) from which the card is shown. */
+  /** Playback time (s) from which the button is shown. */
   at: number;
   show: boolean;
-  /** The 10-second countdown runs (autoplay on); otherwise the card waits for a click. */
-  countdown: boolean;
 }
 
 /** Playback time at which the Next Episode card appears. `creditsStart` replaces the estimate when the catalog has one. */
@@ -83,23 +82,29 @@ export function nextCardAt(duration: number, creditsStart?: number | null): numb
   return Math.min(latest, Math.max(earliest, start + CARD_AFTER_CREDITS_SECONDS));
 }
 
-/** What the Next Episode card does at playback time `now`. Never shown without a next episode or after a dismissal. */
-export function nextCardPlan(
-  duration: number,
-  now: number,
-  autoplay: boolean,
-  dismissed: boolean,
-  hasNext = true,
-  creditsStart?: number | null,
-): NextCardPlan {
+/**
+ * The plain "Next episode" button: shown from `at` while the video still plays, never without a next episode or after a
+ * dismissal. It has no countdown and never advances by itself.
+ */
+export function nextCardPlan(duration: number, now: number, dismissed: boolean, hasNext = true, creditsStart?: number | null): NextCardPlan {
   const at = nextCardAt(duration, creditsStart);
-  const show = hasNext && !dismissed && Number.isFinite(at) && now >= at;
-  return { at, show, countdown: show && autoplay };
+  return { at, show: hasNext && !dismissed && Number.isFinite(at) && now >= at };
 }
 
-/** 0..1 fill of the Next Episode button; 1 means "go now". */
-export function countdownProgress(elapsedMs: number): number {
-  return Math.min(1, Math.max(0, elapsedMs / (COUNTDOWN_SECONDS * 1000)));
+export type EndAction = 'none' | 'countdown' | 'upnext';
+
+/**
+ * What happens when the video ends naturally (after-credits scenes are part of the file, so this is the only moment
+ * the next episode may start by itself). A dismissed button or a cancelled countdown never autoplays.
+ */
+export function endAction(o: { ended: boolean; hasNext: boolean; autoplay: boolean; suppressed: boolean }): EndAction {
+  if (!o.ended || !o.hasNext) return 'none';
+  return o.autoplay && !o.suppressed ? 'countdown' : 'upnext';
+}
+
+/** Whole seconds left on the end-of-video countdown ("Next episode in 5"); 0 means go now. */
+export function countdownLeft(elapsedMs: number): number {
+  return Math.min(COUNTDOWN_AT_END, Math.max(0, Math.ceil(COUNTDOWN_AT_END - elapsedMs / 1000)));
 }
 
 export function seasonsOf(episodes: Title[]): number[] {

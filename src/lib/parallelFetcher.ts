@@ -1,5 +1,6 @@
 /** Answers one media range request with several parallel range fetches. Environment injected: tested under Node. */
 import { isExpiring } from './signedUrl';
+import { PF_TIMING, isLinkExpiredStatus, timeoutError } from './parallelPolicy';
 import {
   PF,
   fileHostUrl,
@@ -17,6 +18,9 @@ export interface FetcherDeps {
   now?: () => number;
   /** Shared by every request, so the origin never has more than PF.MAX_CONNECTIONS media connections open. */
   limit?: ReturnType<typeof createLimiter>;
+  /** Allowances (tests shorten them): headers of a piece, and silence between two chunks of its body. */
+  connectMs?: number;
+  stallMs?: number;
 }
 
 interface FileInfo {
@@ -33,8 +37,16 @@ export interface MediaRequest {
 
 const OK_STATUS = 206;
 
-/** Same bytes, with `onEnd` called once when the stream finishes, fails or is cancelled. */
-function tapStream(body: ReadableStream<Uint8Array> | null, onEnd: () => void): ReadableStream<Uint8Array> | null {
+/**
+ * Same bytes, with `onEnd` called once when the stream finishes, fails or is cancelled. A body that stays silent for
+ * `stallMs` fails with a timeout (and `onStall` aborts its connection) so the piece can be retried.
+ */
+function tapStream(
+  body: ReadableStream<Uint8Array> | null,
+  onEnd: () => void,
+  stallMs: number,
+  onStall: () => void,
+): ReadableStream<Uint8Array> | null {
   if (!body) {
     onEnd();
     return null;
@@ -42,8 +54,15 @@ function tapStream(body: ReadableStream<Uint8Array> | null, onEnd: () => void): 
   const reader = body.getReader();
   return new ReadableStream<Uint8Array>({
     async pull(c) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const { done, value } = await reader.read();
+        const stalled = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            onStall();
+            reject(timeoutError('stall'));
+          }, stallMs);
+        });
+        const { done, value } = await Promise.race([reader.read(), stalled]);
         if (done) {
           onEnd();
           c.close();
@@ -51,6 +70,8 @@ function tapStream(body: ReadableStream<Uint8Array> | null, onEnd: () => void): 
       } catch (e) {
         onEnd();
         c.error(e);
+      } finally {
+        clearTimeout(timer);
       }
     },
     cancel(reason) {
@@ -68,6 +89,8 @@ export function createParallelFetcher(deps: FetcherDeps) {
   const doFetch = deps.fetch;
   const now = deps.now ?? Date.now;
   const limit = deps.limit ?? createLimiter(PF.MAX_CONNECTIONS);
+  const connectMs = deps.connectMs ?? PF_TIMING.CONNECT_MS;
+  const stallMs = deps.stallMs ?? PF_TIMING.STALL_MS;
   /** original link -> the file host URL that answered a HEAD, with the file size and type. */
   const files = new Map<string, FileInfo>();
 
@@ -92,7 +115,7 @@ export function createParallelFetcher(deps: FetcherDeps) {
           files.set(original, info);
           return info;
         }
-        if (res.status === 403 || res.status === 410) return null;
+        if (isLinkExpiredStatus(res.status)) return null;
       } catch (e) {
         if (signal.aborted) throw e;
       }
@@ -108,26 +131,46 @@ export function createParallelFetcher(deps: FetcherDeps) {
     new Promise((resolve, reject) => {
       limit(async () => {
         if (signal.aborted) throw abortError();
-        const res = await doFetch(info.url, {
-          headers: { Range: `bytes=${range.start}-${range.end}` },
-          mode: 'cors',
-          credentials: 'omit',
-          cache: 'no-store',
-          signal,
-        });
+        // Its own controller: a timeout drops this connection only, the browser's cancel drops it too (via `signal`).
+        const mine = new AbortController();
+        const onAbort = () => mine.abort(signal.reason);
+        signal.addEventListener('abort', onAbort, { once: true });
+        const connect = setTimeout(() => mine.abort(timeoutError('connect')), connectMs);
+        let res: Response;
+        try {
+          res = await doFetch(info.url, {
+            headers: { Range: `bytes=${range.start}-${range.end}` },
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+            signal: mine.signal,
+          });
+        } catch (e) {
+          signal.removeEventListener('abort', onAbort);
+          // A fetch that fails because we aborted it reports our reason (or an AbortError): make it a timeout.
+          throw signal.aborted ? e : mine.signal.aborted ? timeoutError('connect') : e;
+        } finally {
+          clearTimeout(connect);
+        }
         if (res.status === 416) {
+          signal.removeEventListener('abort', onAbort);
           void res.body?.cancel().catch(() => {});
           resolve(null);
           return;
         }
         if (res.status !== OK_STATUS) {
+          signal.removeEventListener('abort', onAbort);
           void res.body?.cancel().catch(() => {});
-          if (res.status === 403 || res.status === 410) files.delete(original);
+          if (isLinkExpiredStatus(res.status)) files.delete(original);
           throw Object.assign(new Error(`piece ${res.status}`), { status: res.status });
         }
         let release!: () => void;
         const held = new Promise<void>((r) => (release = r));
-        resolve(withBody(res, tapStream(res.body, release)));
+        const end = () => {
+          signal.removeEventListener('abort', onAbort);
+          release();
+        };
+        resolve(withBody(res, tapStream(res.body, end, stallMs, () => mine.abort(timeoutError('stall')))));
         await held;
       }, signal).catch(reject);
     });
@@ -164,6 +207,8 @@ export function createParallelFetcher(deps: FetcherDeps) {
       req.signal,
       PF.RETRIES,
       { index: 0, body: first.body },
+      // Last resort for a piece that keeps failing: one plain request for what is left, not a failed response.
+      async (range, signal) => ({ body: (await fetchPiece(req.url, info, range, signal))?.body ?? null }),
     );
 
     return new Response(stream, {

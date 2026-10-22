@@ -18,6 +18,16 @@ export function SkeletonGrid({ count = 12 }: { count?: number }) {
   );
 }
 
-export function Spinner({ label = 'Loading' }: { label?: string }) {
-  return <div className="spinner" role="status" aria-label={label} />;
+/** `percent` (0-100) adds a number in the middle; `announce` is the coarser value read to screen readers. */
+export function Spinner({ label = 'Loading', percent, announce }: { label?: string; percent?: number | null; announce?: number | null }) {
+  if (percent == null) return <div className="spinner" role="status" aria-label={label} />;
+  return (
+    <div className="spinner-pct" role="status" aria-live="polite">
+      <div className="spinner" aria-hidden="true" />
+      <span className="spinner-pct__n" aria-hidden="true">
+        {percent}%
+      </span>
+      <span className="sr-only">{`Loading ${announce ?? percent} percent`}</span>
+    </div>
+  );
 }
