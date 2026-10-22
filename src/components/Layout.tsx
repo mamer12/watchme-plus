@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useOnline } from '../hooks/useOnline';
-import { FlameIcon, GearIcon, HomeIcon, ListIcon, SearchIcon, WifiOffIcon } from './Icons';
+import { FlameIcon, GearIcon, HomeIcon, ListIcon, SearchIcon, SparkIcon, WifiOffIcon } from './Icons';
 import { capabilities } from '../profiles/logic';
 import { ProfileMenu } from '../profiles/ProfileMenu';
 import { profileStore, useProfiles } from '../profiles/singleton';
+import { sparkAskLabel } from '../lib/sparkBrand';
+import { useLibrary } from '../state/store';
 import { Logo } from './Logo';
 
 const DESKTOP_LINKS = [
@@ -41,6 +43,9 @@ function TopNav() {
   const onBrowse = ['/', '/series', '/movies'].includes(location.pathname);
   useProfiles();
   const caps = capabilities(profileStore.active());
+  const lang = useLibrary((s) => s.settings.titleLang) === 'ar' ? 'ar' : 'en';
+  const askLabel = sparkAskLabel(lang);
+  const onSpark = location.pathname === '/spark';
   return (
     <header className={`topnav ${scrolled ? 'topnav--solid' : ''}`}>
       <Link to="/" className="topnav__logo" aria-label="Watchme+ home">
@@ -54,6 +59,16 @@ function TopNav() {
         ))}
       </nav>
       <div className="topnav__tools">
+        <button
+          type="button"
+          className={`icon-btn icon-btn--spark ${onSpark ? 'is-active' : ''}`}
+          aria-label={askLabel}
+          title={askLabel}
+          aria-current={onSpark ? 'page' : undefined}
+          onClick={() => navigate('/spark')}
+        >
+          <SparkIcon size={22} />
+        </button>
         <button type="button" className="icon-btn" aria-label="Search" onClick={() => navigate('/search')}>
           <SearchIcon size={22} />
         </button>

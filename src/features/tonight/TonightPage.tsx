@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeftIcon } from '../../components/Icons';
 import { Spinner } from '../../components/Skeleton';
 import { TitleCard } from '../../components/TitleCard';
 import { sparkName } from '../../lib/sparkBrand';
 import { useLibrary } from '../../state/store';
-import { pick, UI } from './text';
+import { pick, REFINE, UI } from './text';
 import { useTonight } from './useTonight';
 import './tonight.css';
 
-/** "Spark Tonight": a short chat that ends in real titles. Its own screen; normal search never depends on it. */
+/** "Ask Spark": a short chat that ends in real titles. Its own screen; normal search never depends on it. */
 export default function TonightPage() {
   const lang = useLibrary((s) => s.settings.titleLang);
   const level = useLibrary((s) => s.settings.level);
-  const { chat, phase, picks, send, restart, status } = useTonight(lang, level);
+  const { chat, phase, picks, send, refine, canRefine, restart, status } = useTonight(lang, level);
   const [text, setText] = useState('');
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -35,11 +33,8 @@ export default function TonightPage() {
 
   return (
     <div className="page tonight" dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang}>
-      <Link to="/search" className="tonight__back">
-        <ArrowLeftIcon size={18} /> {pick(UI.back, lang)}
-      </Link>
       <h1 className="page-heading">
-        {sparkName()} {pick(UI.title, lang)}
+        {pick(UI.title, lang)} {sparkName()}
       </h1>
       <p className="tonight__lead">{pick(UI.lead, lang)}</p>
 
@@ -87,6 +82,15 @@ export default function TonightPage() {
         </section>
       )}
       {phase === 'empty' && <p className="tonight__empty">{pick(UI.nothing, lang)}</p>}
+      {canRefine && (
+        <nav className="chips chips--wrap" aria-label={pick(UI.refine, lang)}>
+          {REFINE.map((r) => (
+            <button key={r.en} type="button" className="chip" onClick={() => void refine(pick(r, lang))}>
+              {pick(r, lang)}
+            </button>
+          ))}
+        </nav>
+      )}
       {(phase === 'results' || phase === 'empty') && (
         <button type="button" className="chip" onClick={restart}>
           {pick(UI.startOver, lang)}

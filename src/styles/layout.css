@@ -205,3 +205,29 @@
     font-size: 0.85rem;
   }
 }
+
+/* The AI entry sits just before the magnifier: same size as its neighbours, with a soft glow and a dot while active. */
+.icon-btn--spark {
+  position: relative;
+}
+
+.icon-btn--spark svg {
+  filter: drop-shadow(0 0 5px rgba(255, 90, 130, 0.55));
+}
+
+.icon-btn--spark:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.icon-btn--spark.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff4d5a, #ff6ec7);
+}

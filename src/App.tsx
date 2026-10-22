@@ -84,8 +84,9 @@ function AppRoutes() {
           <Route path="/new" element={<NewPopularPage />} />
           <Route path="/my-list" element={<MyListPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/tonight" element={<Navigate to="/spark" replace />} />
           <Route
-            path="/tonight"
+            path="/spark"
             element={
               <Suspense fallback={<Spinner label="Loading" />}>
                 <TonightPage />

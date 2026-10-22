@@ -1,10 +1,11 @@
-# Tonight
+# Tonight (Ask Spark)
 
 ## Purpose
 
-An AI chat ("Spark Tonight") that keeps asking short questions (who is watching, mood, what they like, how much time)
-and then shows real titles from the catalog. The AI only asks and returns filters; it never names titles. Without the
+An AI chat ("Ask Spark") that opens with how the user feels, asks a few different follow-ups (who is watching, what they
+have in mind, language, length, era) and then shows real titles from the catalog. The AI only asks and returns filters; it never names titles. Without the
 function, a key or a session, a fixed set of questions does the same job. Normal search is never affected.
+Entry: a sparkle icon button in the header, left of Search, route `/spark` (`/tonight` redirects to it).
 Code: `src/features/tonight/`, `supabase/functions/spark-tonight/`, `supabase/migrations/0004_spark_tonight.sql`.
 
 Depends on: `/api/tmdb` (discover), catalog search matching, the sync session (a guest or account token), Supabase Edge
@@ -43,14 +44,14 @@ The system SHALL add the weekday, the hour and an `isWeekendEve` flag that is tr
 - THEN `isWeekendEve` is true; on Thursday morning or any other day it is false
 
 ### TONIGHT-004: Fixed questions
-The system SHALL, when the AI is not available, ask fixed questions (who is watching, film or series, mood, length) in English and Arabic and map the answers to the same `filters` shape the AI returns.
+The system SHALL, when the AI is not available, ask fixed questions in English and Arabic (mood, who is watching, film or series, what is in mind with genre chips and free text, length, language or origin, era) and map the answers to the same `filters` shape the AI returns: a mood sets genres and what to leave out, an explicit genre wins over the mood, and a skipped question assumes nothing.
 
 - Verification: test
 
 #### Scenario: Fixed questions
-- GIVEN the answers family, film, light, short
+- GIVEN the answers happy, family, film, short, English, recent
 - WHEN mapped
-- THEN type is movie, genres include comedy and family, horror is excluded and the runtime limit is 100 minutes
+- THEN type is movie, genres include comedy and family, horror is excluded, the runtime limit is 100 minutes, the language is en and the minimum year is 2018
 
 ### TONIGHT-005: Conversation limits
 The system SHALL end a conversation after 12 user answers with neutral filters, send at most the last 20 messages to the AI, ignore empty input and ignore answers while a reply is pending.
@@ -83,7 +84,7 @@ The system SHALL, in the Edge Function, accept only a list of at most 24 message
 - THEN the request is refused with `too_many_turns`
 
 ### TONIGHT-008: Model reply validation
-The system SHALL treat the model's JSON as untrusted: rebuild the filters with known genre names, bounded numbers and a two-letter language, cap the choices at 5 and the text sizes, strip control characters, and refuse a reply without text or without a next step. The prompt SHALL forbid naming titles and takes the product name as a parameter.
+The system SHALL treat the model's JSON as untrusted: rebuild the filters with known genre names, bounded numbers and a two-letter language, cap the choices at 5 and the text sizes, strip control characters, and refuse a reply without text or without a next step. The prompt SHALL forbid naming titles, take the product name as a parameter, open with a question about feelings, ask 4 to 6 different follow-ups without re-asking anything answered or implied, keep the weekday and hour silent, answer in the user's language (English for a bare greeting) and handle refine messages by returning adjusted filters.
 
 - Verification: test
 
@@ -133,7 +134,7 @@ The system SHALL call the `spark-tonight` function with the user's session token
 - THEN the reason is `rate_limited`
 
 ### TONIGHT-013: Search is untouched
-The system SHALL keep normal search independent of Tonight: no search module imports Tonight, no shared module imports it, the only change to the search page is a link to `/tonight`, and the route is loaded lazily.
+The system SHALL keep normal search independent of Tonight: no search module imports Tonight, no shared module imports it, the search page has no link or chip to it, and the route is loaded lazily.
 
 - Verification: test
 
@@ -152,14 +153,14 @@ The system SHALL require a valid Supabase user JWT (anonymous users count), allo
 - WHEN it finishes
 - THEN it prints PASS notices; with the function deployed and a key set, a signed-in user gets a question back and the 31st request in an hour gets `rate_limited`
 
-### TONIGHT-015: Tonight screen
+### TONIGHT-015: Ask Spark screen
 The system SHALL show the chat as bubbles with quick-reply chips, a free-text box, a Start over button and a grid of picks with their reasons, in right-to-left layout for Arabic, usable with the keyboard, and say when it falls back to fixed questions.
 
-- Verification: manual — open `/tonight` in Arabic and English, with and without the function; check RTL, Tab order and the picks.
+- Verification: manual — open `/spark` in Arabic and English, with and without the function; check RTL, Tab order and the picks.
 
 #### Scenario: Tonight screen
-- GIVEN /tonight with the language set to Arabic and no function deployed
-- WHEN opened and the four questions are answered
+- GIVEN /spark with the language set to Arabic and no function deployed
+- WHEN opened and the questions are answered
 - THEN the layout is right-to-left, Tab reaches the chips, the input and the cards, and real titles with reasons appear
 
 ### TONIGHT-016: Provider fallback
@@ -181,3 +182,33 @@ The system SHALL read the model's JSON text from Gemini's and OpenRouter's respo
 - GIVEN a Gemini candidate, an OpenRouter choice, and malformed bodies
 - WHEN the text is extracted and sanitized
 - THEN both valid shapes give the same reply and malformed ones give null or `bad_model_output`
+
+### TONIGHT-018: Header entry
+The system SHALL show a sparkle icon button in the header immediately before the Search icon (also at phone width), with the accessible name and tooltip "Ask {spark}" or its Arabic equivalent, an active state on `/spark`, keyboard focus, and redirect `/tonight` to `/spark`; the search page SHALL have no link to it.
+
+- Verification: test
+
+#### Scenario: Header entry
+- GIVEN the layout source and the router
+- WHEN read
+- THEN the Spark button comes before the Search button with an aria-label from the spark name, and `/tonight` navigates to `/spark`
+
+### TONIGHT-019: Skippable non-repeating fixed flow
+The system SHALL ask the seven fixed questions in a fixed order, each with a Skip chip, never asking one that is already answered or skipped, and SHALL not mention tonight, the weekend or a day of the week in what it says.
+
+- Verification: test
+
+#### Scenario: Non-repeating fixed flow
+- GIVEN answers where some questions are answered and some skipped
+- WHEN the next question is chosen
+- THEN it is the first one not yet answered, and after the seventh the chat is done with filters
+
+### TONIGHT-020: Refine after the picks
+The system SHALL, in AI mode and while the turn cap allows, reopen the chat after the filters so the user can tap Funnier, Shorter, Older, More intense or Something different (or type) and get new picks.
+
+- Verification: test
+
+#### Scenario: Refine after the picks
+- GIVEN an AI chat that returned filters
+- WHEN it is reopened
+- THEN it asks for input again with no filters; a fixed-question chat or one at the turn cap cannot be reopened

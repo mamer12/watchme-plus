@@ -34,7 +34,7 @@ tests trace back to. When the implementation changes behaviour, the spec changes
 | [layout-and-navigation](layout-and-navigation/spec.md) | Mobile tab bar, desktop nav, arrow-key/remote focus, motion, SPA routing |
 | [accounts](accounts/spec.md) | Email + password accounts, welcome screen, upgrade guest in place, sign in/out, merge, delete |
 | [profiles](profiles/spec.md) | Who's watching, Kids profiles, PINs, per-profile library and sync keys |
-| [tonight](tonight/spec.md) | Spark Tonight: AI chat with fixed-question fallback that ends in real titles |
+| [tonight](tonight/spec.md) | Ask Spark: AI chat with fixed-question fallback that ends in real titles |
 
 Profiles (see below) share one browser and one sync space. Signing in with an email and password is optional: see accounts.
 
@@ -60,6 +60,6 @@ Profiles (see below) share one browser and one sync space. Signing in with an em
 | [sync](sync/spec.md) | `SYNC-` | 18 | 17 | 1 |
 | [title-page](title-page/spec.md) | `TITLE-` | 9 | 7 | 2 |
 | [tmdb-proxy](tmdb-proxy/spec.md) | `TMDB-` | 10 | 10 | 0 |
-| [tonight](tonight/spec.md) | `TONIGHT-` | 15 | 13 | 2 |
-| **Total** | | **211** | **169** | **42** |
+| [tonight](tonight/spec.md) | `TONIGHT-` | 20 | 18 | 2 |
+| **Total** | | **216** | **174** | **42** |
 <!-- status:end -->

@@ -48,8 +48,15 @@ describe('spark-tonight validation', () => {
 
   it('TONIGHT-008: the system prompt forbids naming titles and takes the product name as a parameter', () => {
     const p = systemPrompt('Zed');
-    expect(p).toContain('Zed Tonight');
+    expect(p).toContain('You are Zed');
     expect(p).toMatch(/NEVER name/);
+    expect(p).not.toMatch(/Tonight/);
+    expect(p).toMatch(/how they feel/);
+    expect(p).toMatch(/4 to 6 DIFFERENT follow-up/);
+    expect(p).toMatch(/NEVER ask a question that was already answered/);
+    expect(p).toMatch(/Funnier/);
+    expect(p).toMatch(/"hi"/);
+    expect(p).toMatch(/keep them silent/);
     expect(p).not.toMatch(/Cinemana/i);
   });
 });

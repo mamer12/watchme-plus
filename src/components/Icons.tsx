@@ -87,6 +87,19 @@ export const SearchIcon = (p: P) => (
     <path d="m15.5 15.5 5 5" {...stroke} />
   </Svg>
 );
+/** Four-point sparkle with a red-to-pink gradient: the AI entry in the header. */
+export const SparkIcon = (p: P) => (
+  <Svg {...p}>
+    <defs>
+      <linearGradient id="spark-grad" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#ff4d5a" />
+        <stop offset="1" stopColor="#ff6ec7" />
+      </linearGradient>
+    </defs>
+    <path d="M10.5 3c.6 4.6 2.4 6.9 7 7.5-4.6.6-6.4 2.9-7 7.5-.6-4.6-2.4-6.9-7-7.5 4.6-.6 6.4-2.9 7-7.5Z" fill="url(#spark-grad)" stroke="url(#spark-grad)" strokeWidth="1.2" strokeLinejoin="round" />
+    <path d="M18.5 15.5c.3 2 1 2.9 3 3.2-2 .3-2.7 1.2-3 3.2-.3-2-1-2.9-3-3.2 2-.3 2.7-1.2 3-3.2Z" fill="url(#spark-grad)" />
+  </Svg>
+);
 export const HomeIcon = (p: P) => (
   <Svg {...p}>
     <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9.5Z" {...stroke} />

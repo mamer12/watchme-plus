@@ -1,6 +1,6 @@
 /** The conversation state machine for Tonight. Pure: every function returns a new state. */
 import { MAX_TEXT, MAX_USER_TURNS } from '../../../supabase/functions/spark-tonight/validate';
-import { choicesFor, FALLBACK_STEPS, filtersFromAnswers, matchOption, stepAt, type Answers } from './fallback';
+import { choicesFor, FALLBACK_STEPS, filtersFromAnswers, matchOption, nextStepIndex, stepAt, type Answers } from './fallback';
 import { pick, UI } from './text';
 import type { ChatMsg, Choice, Lang, TonightFilters, TonightReply } from './types';
 
@@ -31,7 +31,7 @@ const askStep = (s: ChatState, step: number, prefix?: string): ChatState => {
     ...s,
     step,
     status: 'asking',
-    choices: choicesFor(st, s.lang),
+    choices: choicesFor(st, s.lang, s.mode === 'fallback'),
     messages: [...s.messages, ...(prefix ? [{ role: 'assistant' as const, text: prefix }] : []), { role: 'assistant', text: pick(st.question, s.lang) }],
   };
 };
@@ -64,10 +64,10 @@ export function answerFallback(s: ChatState, input: string): ChatState {
   const withUser = addUser(s, input);
   if (withUser === s) return s;
   if (!option) {
-    return { ...withUser, turns: s.turns, status: 'asking', choices: choicesFor(step, s.lang), messages: [...withUser.messages, { role: 'assistant', text: pick(UI.pickOne, s.lang) }] };
+    return { ...withUser, turns: s.turns, status: 'asking', choices: choicesFor(step, s.lang, true), messages: [...withUser.messages, { role: 'assistant', text: pick(UI.pickOne, s.lang) }] };
   }
   const answers: Answers = { ...withUser.answers, [step.id]: option.id };
-  const next = s.step + 1;
+  const next = nextStepIndex(answers, s.step + 1);
   if (next >= FALLBACK_STEPS.length) {
     return { ...withUser, answers, step: next, status: 'done', choices: [], filters: filtersFromAnswers(answers), messages: say(withUser, pick(UI.lead_in, s.lang)) };
   }
@@ -90,3 +90,11 @@ export function historyForApi(s: ChatState): ChatMsg[] {
   // The server wants the last message from the user; leading assistant messages are fine (it adds a start marker).
   return tail;
 }
+
+/** After the filters, the user can keep talking ("Funnier", "Shorter"): the chat opens again while turns remain. */
+export function reopen(s: ChatState): ChatState {
+  if (s.mode !== 'ai' || s.status !== 'done' || s.turns >= MAX_USER_TURNS) return s;
+  return { ...s, status: 'asking', filters: null, choices: [] };
+}
+
+export const canRefine = (s: ChatState): boolean => reopen(s) !== s;

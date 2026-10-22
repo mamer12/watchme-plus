@@ -3,7 +3,7 @@ import { genreAffinity } from '../../lib/recommend';
 import { excludedIds } from '../../state/library';
 import { getState } from '../../state/store';
 import { askTonight, realDeps, type AskDeps } from './api';
-import { addUser, answerFallback, applyReply, canAnswer, historyForApi, startChat, toFallback, type ChatState } from './machine';
+import { addUser, answerFallback, applyReply, canAnswer, canRefine, historyForApi, reopen, startChat, toFallback, type ChatState } from './machine';
 import { resolvePicks, type ResolveDeps, type TonightPick } from './resolver';
 import { buildTasteSummary } from './tasteSummary';
 import { pick, UI } from './text';
@@ -40,6 +40,26 @@ export function useTonight(lang: Lang, level: ResolveDeps['level'], deps: () => 
     [lang, level],
   );
 
+  const askAi = useCallback(
+    async (base: ChatState, text: string, id: number) => {
+      const asked = addUser(base, text);
+      if (asked === base) return;
+      setChat(asked);
+      const res = await askTonight(historyForApi(asked), buildTasteSummary(getState(), new Date(), lang), deps());
+      if (run.current !== id) return;
+      if (!res.ok) {
+        setChat(toFallback(asked));
+        setPhase('chat');
+        return;
+      }
+      const next = applyReply(asked, res.reply);
+      setChat(next);
+      setPhase('chat');
+      if (next.status === 'done' && next.filters) void finish(next.filters, id);
+    },
+    [lang, deps, finish],
+  );
+
   const send = useCallback(
     async (text: string) => {
       if (!canAnswer(chat) || phase !== 'chat') return;
@@ -50,21 +70,22 @@ export function useTonight(lang: Lang, level: ResolveDeps['level'], deps: () => 
         if (next.status === 'done' && next.filters) void finish(next.filters, id);
         return;
       }
-      const asked = addUser(chat, text);
-      if (asked === chat) return;
-      setChat(asked);
-      const res = await askTonight(historyForApi(asked), buildTasteSummary(getState(), new Date(), lang), deps());
-      if (run.current !== id) return;
-      if (!res.ok) {
-        setChat(toFallback(asked));
-        return;
-      }
-      const next = applyReply(asked, res.reply);
-      setChat(next);
-      if (next.status === 'done' && next.filters) void finish(next.filters, id);
+      await askAi(chat, text, id);
     },
-    [chat, phase, lang, deps, finish],
+    [chat, phase, finish, askAi],
   );
+
+  /** After the picks: keep talking ("Funnier"); the AI answers with new filters. */
+  const refine = useCallback(
+    async (text: string) => {
+      if (phase !== 'results' && phase !== 'empty') return;
+      const again = reopen(chat);
+      if (again === chat) return;
+      await askAi(again, text, run.current);
+    },
+    [chat, phase, askAi],
+  );
+  const canRefineNow = (phase === 'results' || phase === 'empty') && canRefine(chat);
 
   const restart = useCallback(() => {
     run.current += 1;
@@ -74,5 +95,5 @@ export function useTonight(lang: Lang, level: ResolveDeps['level'], deps: () => 
   }, [lang]);
 
   const status = chat.status === 'thinking' ? pick(UI.thinking, lang) : phase === 'finding' ? pick(UI.finding, lang) : '';
-  return { chat, phase, picks, send, restart, status };
+  return { chat, phase, picks, send, refine, canRefine: canRefineNow, restart, status };
 }
