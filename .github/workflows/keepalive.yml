@@ -1,0 +1,32 @@
+# Pings Supabase every 3 days so the free project is never auto-paused (7 days idle).
+# Needs repository VARIABLES (Settings -> Secrets and variables -> Actions -> Variables):
+#   SUPABASE_URL       e.g. https://abcd1234.supabase.co
+#   SUPABASE_ANON_KEY  the public anon key (not a secret, never use service_role)
+name: supabase-keepalive
+on:
+  schedule:
+    - cron: "23 4 */3 * *"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call ping() RPC
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Set repository variables SUPABASE_URL and SUPABASE_ANON_KEY"; exit 1
+          fi
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' --max-time 30 --retry 3 --retry-delay 10 \
+            -X POST "${SUPABASE_URL%/}/rest/v1/rpc/ping" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" -d '{}')
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::Supabase ping returned HTTP $code (project paused or down?)"; exit 1
+          fi

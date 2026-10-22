@@ -1,0 +1,449 @@
+/* ==========================================================================
+   Title modal ("More Info") and episodes
+   ========================================================================== */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(0, 0, 0, 0.72);
+  animation: fade-in 0.2s var(--ease);
+}
+
+.modal {
+  position: relative;
+  width: min(880px, calc(100vw - 32px));
+  margin: 32px auto 48px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-elev);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  animation: modal-in 0.3s var(--ease);
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+}
+
+/* Outside the dialog (it scrolls and animates): fixed at the dialog's top corner, always reachable. */
+.modal__close {
+  position: fixed;
+  z-index: 90;
+  top: 46px;
+  inset-inline-end: calc((100vw - min(880px, 100vw - 32px)) / 2 + 14px);
+  background: var(--bg-elev);
+  border-color: transparent;
+}
+
+.modal__loading,
+.modal__empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 50vh;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.modal__empty h2 {
+  color: var(--text);
+}
+
+.modal__hero {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.modal__hero > .img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% center;
+}
+
+.modal__hero .modal__hero-poster {
+  object-position: center 20%;
+}
+
+.modal__trailer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+}
+
+.modal__trailer--on {
+  opacity: 1;
+}
+
+/* Covers the hero like object-fit: cover (the video is 16:9). */
+.modal__trailer iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  min-width: 177.78%;
+  min-height: 100%;
+  border: 0;
+  transform: translate(-50%, -50%) scale(1.15);
+  pointer-events: none;
+}
+
+.modal__mute {
+  position: absolute;
+  top: 16px;
+  right: 72px;
+  z-index: 2;
+}
+
+.modal__hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, var(--bg-elev) 0%, rgba(24, 24, 24, 0.6) 22%, transparent 55%);
+}
+
+.modal__hero-info {
+  position: absolute;
+  inset: auto 48px 40px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.modal__logo {
+  max-width: 45%;
+  max-height: 120px;
+  width: auto;
+  object-fit: contain;
+  object-position: left bottom;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+.modal__title {
+  max-width: 70%;
+  font-size: clamp(1.6rem, 3.6vw, 2.8rem);
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.6);
+}
+
+.modal__title--small {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.modal__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modal__actions .icon-btn--round {
+  width: 42px;
+  height: 42px;
+}
+
+.modal__resume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.modal__content {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 32px;
+  padding: 4px 48px 24px;
+}
+
+.modal__main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal__synopsis {
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.modal__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.modal__facts div {
+  line-height: 1.45;
+}
+
+.modal__facts dt {
+  display: inline;
+  color: var(--text-mute);
+  margin-inline-end: 4px;
+}
+
+.modal__facts dd {
+  display: inline;
+  margin: 0;
+}
+
+.modal h3 {
+  font-size: 1.45rem;
+  font-weight: 700;
+}
+
+.more-like,
+.modal__about {
+  padding: 24px 48px;
+}
+
+.more-like h3 {
+  margin-bottom: 16px;
+}
+
+.more-like .grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.modal__about {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 40px;
+  font-size: 0.9rem;
+}
+
+.modal__about h3 {
+  font-weight: 400;
+  margin-bottom: 6px;
+}
+
+/* ---------- episodes ---------- */
+.episodes {
+  padding: 20px 48px;
+}
+
+.episodes__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.season-single {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.episodes__list li + li {
+  border-top: 1px solid #404040;
+}
+
+.episode {
+  display: grid;
+  grid-template-columns: 40px 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 22px 16px;
+  border-radius: var(--radius);
+  text-align: start;
+}
+
+.episode:hover,
+.episode.is-current {
+  background: #333;
+}
+
+.episode__num {
+  font-size: 1.5rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.episode__thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #2a2a2a;
+}
+
+.episode__thumb .img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+
+.episode__play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.35);
+  transition: opacity 0.2s;
+}
+
+.episode__play svg {
+  width: 40px;
+  height: 40px;
+  padding: 10px;
+  border: 2px solid var(--text);
+  border-radius: 50%;
+}
+
+.episode:hover .episode__play,
+.episode:focus-visible .episode__play {
+  opacity: 1;
+}
+
+.episode__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.episode__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.episode__watched {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #000;
+}
+
+.episode__synopsis {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.episode__len {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  align-self: start;
+}
+
+@media (max-width: 799px) {
+  .modal-backdrop {
+    background: var(--bg);
+  }
+
+  /* Phones: below the status bar and the notch, where taps reach it. */
+  .modal__close {
+    top: calc(var(--safe-top) + 10px);
+    inset-inline-end: 12px;
+    width: 44px;
+    height: 44px;
+    background: rgba(20, 20, 20, 0.82);
+  }
+
+  .modal {
+    width: 100%;
+    min-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .modal__hero-info {
+    position: relative;
+    inset: auto;
+    padding: 0 16px;
+    margin-top: -48px;
+    gap: 14px;
+  }
+
+  .modal__hero {
+    aspect-ratio: auto;
+    background: var(--bg-elev);
+  }
+
+  .modal__hero > .img {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    height: auto;
+  }
+
+  .modal__hero-shade {
+    display: none;
+  }
+
+  .modal__trailer {
+    bottom: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .modal__mute {
+    right: 64px;
+  }
+
+  .modal__logo {
+    max-width: 65%;
+    max-height: 80px;
+  }
+
+  .modal__actions .btn {
+    flex: 1 1 100%;
+  }
+
+  .modal__content {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .more-like,
+  .modal__about,
+  .episodes {
+    padding: 16px;
+  }
+
+  .more-like .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .episode {
+    grid-template-columns: 120px minmax(0, 1fr) auto;
+    padding: 14px 4px;
+    gap: 12px;
+  }
+
+  .episode__num {
+    display: none;
+  }
+}

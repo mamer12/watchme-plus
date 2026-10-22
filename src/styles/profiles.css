@@ -1,0 +1,353 @@
+/* ==========================================================================
+   Profiles: picker, editor, PIN pad, nav menu
+   ========================================================================== */
+
+.avatar {
+  display: block;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* ---------- "Who's watching?" ---------- */
+.picker {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 32px var(--gutter);
+  overflow-y: auto;
+  background: var(--bg);
+}
+
+.picker__title {
+  font-size: clamp(1.8rem, 4vw, 3.2rem);
+  font-weight: 500;
+  text-align: center;
+}
+
+.picker__grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(16px, 2.6vw, 36px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 1100px;
+}
+
+.profile-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: clamp(96px, 14vw, 150px);
+  color: var(--text-dim);
+  border-radius: var(--radius-lg);
+  transition: color 0.15s, transform 0.15s;
+}
+
+.profile-tile__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.profile-tile__art .avatar {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-tile:hover,
+.profile-tile:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+.profile-tile:hover .profile-tile__art,
+.profile-tile:focus-visible .profile-tile__art {
+  border-color: var(--text);
+  transform: scale(1.06);
+}
+
+.profile-tile.is-current .profile-tile__name {
+  color: var(--text);
+}
+
+.profile-tile__name {
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-tile__kids {
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.profile-tile__edit,
+.profile-tile__lock {
+  position: absolute;
+  inset-inline-end: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.72);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.profile-tile__plus {
+  background: var(--surface-2);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  color: var(--text-dim);
+}
+
+.picker__actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---------- editor ---------- */
+.profile-editor {
+  width: min(560px, calc(100vw - 32px));
+  padding: 24px;
+}
+
+.profile-editor h2 {
+  margin-bottom: 16px;
+}
+
+.profile-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.profile-editor__name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-mute);
+}
+
+.input {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.profile-editor__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+}
+
+.swatch.on,
+.avatar-pick.on {
+  border-color: var(--text);
+}
+
+.avatar-pick {
+  border: 3px solid transparent;
+  border-radius: 50%;
+  line-height: 0;
+}
+
+.swatch:focus-visible,
+.avatar-pick:focus-visible {
+  outline-offset: 3px;
+}
+
+.profile-editor__pin {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-editor__error {
+  min-height: 1.4em;
+  color: var(--accent-hover);
+}
+
+.profile-editor__delete {
+  margin-inline-end: auto;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+/* ---------- PIN pad ---------- */
+.pin-backdrop {
+  display: grid;
+  place-items: center;
+  z-index: 90;
+}
+
+.pin-pad {
+  width: min(380px, calc(100vw - 32px));
+  margin: 16px auto;
+  padding: 24px;
+  text-align: center;
+}
+
+.pin-pad__sub {
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.pin-pad__dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0 6px;
+}
+
+.pin-pad__dots span {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--text-dim);
+}
+
+.pin-pad__dots span.on {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.pin-pad__msg {
+  min-height: 1.5em;
+  margin-bottom: 8px;
+  color: var(--accent-hover);
+  font-size: 0.9rem;
+}
+
+.pin-pad__keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pin-key {
+  min-height: 64px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1.7rem;
+  font-weight: 600;
+}
+
+.pin-key--small {
+  font-size: 0.95rem;
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+.pin-key:hover:not(:disabled),
+.pin-key:focus-visible {
+  background: var(--surface-3);
+}
+
+.pin-key:disabled {
+  opacity: 0.4;
+}
+
+.pin-pad__ok {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.pin-pad__ok:disabled {
+  opacity: 0.45;
+}
+
+/* ---------- nav menu ---------- */
+.profile-menu {
+  position: relative;
+}
+
+.profile-menu__btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+
+.profile-menu__btn:hover {
+  transform: scale(1.08);
+}
+
+.profile-menu__pop {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 10px);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elev);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+.profile-menu__name {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--text-mute);
+}
+
+.profile-menu__pop button {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  text-align: start;
+}
+
+.profile-menu__pop button:hover,
+.profile-menu__pop button:focus-visible {
+  background: var(--surface-2);
+}

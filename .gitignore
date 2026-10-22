@@ -1,0 +1,12 @@
+node_modules
+dist
+dev-dist
+coverage
+.vercel
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+*.tsbuildinfo
+.env*

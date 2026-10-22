@@ -1,0 +1,121 @@
+/* ==========================================================================
+   Accounts: welcome screen, sign-in forms, settings account section
+   ========================================================================== */
+.welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  padding: 24px var(--gutter);
+  overflow-y: auto;
+  background: radial-gradient(120% 80% at 50% 0%, #2a0d16 0%, var(--bg) 60%);
+}
+
+.welcome--center {
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.welcome__top {
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.welcome__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+  text-align: center;
+}
+
+.welcome__title {
+  font-size: clamp(1.9rem, 5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.welcome__sub {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+}
+
+.welcome__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.55);
+  text-align: left;
+}
+
+.auth-card h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.auth-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.auth-input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.auth-error {
+  color: var(--accent-hover);
+}
+
+.auth-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+.auth-link {
+  align-self: flex-start;
+  padding: 6px 2px;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.auth-link:hover,
+.auth-link:focus-visible {
+  color: var(--text);
+}

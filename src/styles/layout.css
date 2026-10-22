@@ -1,0 +1,207 @@
+/* ==========================================================================
+   App chrome: desktop top nav, mobile top bar + chips, bottom tab bar
+   ========================================================================== */
+
+.app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.main {
+  padding-bottom: calc(var(--tab-h) + 24px);
+}
+
+/* ---------- top nav ---------- */
+.topnav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 28px;
+  min-height: var(--nav-h);
+  padding: var(--safe-top) var(--gutter) 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 100%);
+  transition: background-color 0.4s var(--ease);
+}
+
+.topnav--solid {
+  background-color: var(--bg);
+}
+
+.topnav__logo {
+  display: flex;
+  align-items: center;
+  height: var(--nav-h);
+}
+
+.topnav__links {
+  display: flex;
+  gap: 20px;
+  font-size: 0.9rem;
+}
+
+.topnav__link {
+  color: #e5e5e5;
+  transition: color 0.2s;
+}
+
+.topnav__link:hover {
+  color: var(--text-dim);
+}
+
+.topnav__link.active {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.topnav__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+.chips {
+  display: none;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(20, 20, 20, 0.35);
+  white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.chip:hover {
+  border-color: var(--text);
+}
+
+.chip.active {
+  background: var(--text);
+  color: #000;
+  border-color: var(--text);
+}
+
+.chip--clear {
+  padding: 4px 11px;
+}
+
+.chips--wrap {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.chips--scroll {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+
+.chips--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chips--big .chip {
+  min-height: 44px;
+  padding: 8px 18px;
+  font-size: 1rem;
+}
+
+/* ---------- tab bar (mobile) ---------- */
+.tabbar {
+  display: none;
+}
+
+/* ---------- offline ---------- */
+.offline-banner {
+  position: fixed;
+  z-index: 60;
+  inset-inline: 0;
+  bottom: var(--tab-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px var(--gutter);
+  background: #2b2b2b;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 799px) {
+  .topnav {
+    gap: 0;
+    padding-bottom: 10px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0));
+  }
+
+  .topnav--solid {
+    background: rgba(20, 20, 20, 0.92);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  .topnav__links,
+  .topnav__tools a {
+    display: none;
+  }
+
+  .logo {
+    font-size: 1.45rem;
+  }
+
+  .chips {
+    display: flex;
+    width: 100%;
+  }
+
+  .tabbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    height: var(--tab-h);
+    padding-bottom: var(--safe-bottom);
+    background: rgba(18, 18, 18, 0.96);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .tabbar__tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    color: var(--text-mute);
+  }
+
+  .tabbar__tab.active {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+@media (min-width: 800px) and (max-width: 1100px) {
+  .topnav__links {
+    gap: 14px;
+    font-size: 0.85rem;
+  }
+}

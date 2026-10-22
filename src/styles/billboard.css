@@ -1,0 +1,279 @@
+/* ==========================================================================
+   Billboard (hero)
+   ========================================================================== */
+
+.home {
+  position: relative;
+}
+
+.page-kind {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--nav-h) + 8px);
+  inset-inline-start: var(--gutter);
+  font-size: clamp(1.6rem, 2.6vw, 2.6rem);
+  font-weight: 800;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+.billboard {
+  position: relative;
+  height: min(56.25vw, 88vh);
+  min-height: 420px;
+  overflow: hidden;
+  background: #000;
+}
+
+.billboard--loading {
+  background: linear-gradient(100deg, #161616 30%, #1f1f1f 50%, #161616 70%) 0 0 / 300% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.billboard-spacer {
+  height: calc(var(--nav-h) + 6vw + 20px);
+}
+
+.billboard__media {
+  position: absolute;
+  inset: 0;
+}
+
+.billboard__slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s var(--ease);
+}
+
+.billboard__slide.is-active {
+  opacity: 1;
+}
+
+.billboard__slide .img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 62% center;
+}
+
+.billboard__slide .billboard__poster {
+  object-position: center 20%;
+  filter: blur(0.5px);
+}
+
+.billboard__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: fade-in 0.8s var(--ease);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.billboard__shade {
+  position: absolute;
+  inset: 0;
+  /* The bottom fade is listed first so it sits on top and ends exactly on the page colour. */
+  background: linear-gradient(180deg, rgba(20, 20, 20, 0) 58%, rgba(20, 20, 20, 0.55) 76%, rgba(20, 20, 20, 0.92) 90%, var(--bg) 97%),
+    linear-gradient(77deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.35) 34%, rgba(0, 0, 0, 0) 62%);
+}
+
+[dir='rtl'] .billboard__shade {
+  transform: scaleX(-1);
+}
+
+.billboard__info {
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: var(--gutter);
+  bottom: 30%;
+  width: min(40%, 620px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: rise 0.6s var(--ease);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.billboard__logo {
+  max-width: 100%;
+  max-height: 150px;
+  width: auto;
+  object-fit: contain;
+  object-position: left bottom;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
+}
+
+.billboard__title {
+  font-size: clamp(2rem, 4.2vw, 4.4rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 3px 16px rgba(0, 0, 0, 0.6);
+}
+
+.billboard__title--small {
+  font-size: clamp(1.1rem, 1.6vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #e5e5e5;
+}
+
+.billboard__synopsis {
+  font-size: clamp(0.95rem, 1.2vw, 1.2rem);
+  line-height: 1.45;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.billboard__buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.billboard__buttons .btn {
+  min-height: 46px;
+  font-size: 1.15rem;
+}
+
+.billboard__side {
+  position: absolute;
+  z-index: 2;
+  inset-inline-end: 0;
+  bottom: 30%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.billboard__side .badge--age {
+  height: auto;
+  padding: 8px 60px 8px 12px;
+  border: 0;
+  border-inline-start: 3px solid #dcdcdc;
+  background: rgba(51, 51, 51, 0.6);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.billboard__dots {
+  position: absolute;
+  z-index: 2;
+  bottom: calc(6vw + 24px);
+  inset-inline-end: var(--gutter);
+  display: flex;
+  gap: 6px;
+}
+
+.billboard__dot {
+  width: 16px;
+  height: 3px;
+  padding: 0;
+  background-clip: content-box;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.billboard__dot[aria-current='true'] {
+  background: var(--text);
+}
+
+@media (max-width: 799px) {
+  .billboard {
+    height: auto;
+    min-height: 0;
+    padding-top: calc(var(--nav-h) + 54px + var(--safe-top));
+    background: var(--bg);
+  }
+
+  .billboard--loading {
+    height: 70vw;
+  }
+
+  .billboard__media {
+    position: relative;
+    inset: auto;
+    margin: 0 var(--gutter);
+    aspect-ratio: 2.7 / 1;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .billboard__shade,
+  .billboard__side,
+  .billboard__video {
+    display: none;
+  }
+
+  .billboard__info {
+    position: relative;
+    inset: auto;
+    width: auto;
+    padding: 14px var(--gutter) 0;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .billboard__logo {
+    max-height: 70px;
+    object-position: center;
+  }
+
+  .billboard__title {
+    font-size: 1.8rem;
+  }
+
+  .billboard__title--small {
+    font-size: 1.1rem;
+  }
+
+  .billboard__info .meta {
+    justify-content: center;
+    font-size: 0.85rem;
+  }
+
+  .billboard__synopsis {
+    font-size: 0.9rem;
+    -webkit-line-clamp: 2;
+    color: var(--text-dim);
+  }
+
+  .billboard__buttons {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .billboard__buttons .btn {
+    flex: 1;
+    min-height: 42px;
+    font-size: 1rem;
+  }
+
+  .billboard__dots {
+    position: static;
+    justify-content: center;
+    margin-top: 14px;
+  }
+
+  .page-kind {
+    display: none;
+  }
+}
